@@ -340,6 +340,36 @@ class _SessionViewState extends State<_SessionView> {
   final _termController = TerminalController();
   final _scrollController = ScrollController();
   Size _cellSize = Size.zero;
+  EdgeInsets _mediaPadding = EdgeInsets.zero;
+  CellOffset? _selOrigin;
+
+  /// xterm's defaultTheme palette with a clearly visible selection color
+  /// (default 0xAA grey is easy to miss on dark backgrounds).
+  static const _theme = TerminalTheme(
+    cursor: Color(0XAAAEAFAD),
+    selection: Color(0x663B8EEA),
+    foreground: Color(0XFFCCCCCC),
+    background: Color(0XFF1E1E1E),
+    black: Color(0XFF000000),
+    red: Color(0XFFCD3131),
+    green: Color(0XFF0DBC79),
+    yellow: Color(0XFFE5E510),
+    blue: Color(0XFF2472C8),
+    magenta: Color(0XFFBC3FBC),
+    cyan: Color(0XFF11A8CD),
+    white: Color(0XFFE5E5E5),
+    brightBlack: Color(0XFF666666),
+    brightRed: Color(0XFFF14C4C),
+    brightGreen: Color(0XFF23D18B),
+    brightYellow: Color(0XFFF5F543),
+    brightBlue: Color(0XFF3B8EEA),
+    brightMagenta: Color(0XFFD670D6),
+    brightCyan: Color(0XFF29B8DB),
+    brightWhite: Color(0XFFFFFFFF),
+    searchHitBackground: Color(0XFFFFFF2B),
+    searchHitBackgroundCurrent: Color(0XFF31FF26),
+    searchHitForeground: Color(0XFF000000),
+  );
 
   // Plain (unshifted) terminal shortcuts — Ctrl+C/V/A must reach the remote
   // side (SIGINT, readline quoted-insert/line-start), so copy/paste/select-all
@@ -376,6 +406,7 @@ class _SessionViewState extends State<_SessionView> {
       ..layout(const ParagraphConstraints(width: double.infinity));
     _cellSize =
         Size(paragraph.maxIntrinsicWidth / probe.length, paragraph.height);
+    _mediaPadding = MediaQuery.paddingOf(context);
   }
 
   @override
@@ -387,8 +418,14 @@ class _SessionViewState extends State<_SessionView> {
 
   CellOffset _cellAt(Offset local) {
     final t = widget.session.terminal;
-    final x = local.dx - _padding.left;
-    final y = local.dy - _padding.top + _scrollController.offset;
+    // Our local coords come from the RawGestureDetector box which includes
+    // the TerminalView's `padding:` (a Container). RenderTerminal then
+    // subtracts MediaQuery padding itself — so both layers must come off.
+    final x = local.dx - _padding.left - _mediaPadding.left;
+    final y = local.dy -
+        _padding.top -
+        _mediaPadding.top +
+        _scrollController.offset;
     final col =
         (x ~/ _cellSize.width).clamp(0, t.viewWidth - 1);
     final row =
@@ -399,16 +436,23 @@ class _SessionViewState extends State<_SessionView> {
   /// Immediate drag recognizer: claims every drag before the alt-buffer
   /// Scrollable can (it would otherwise turn vertical drags into scrolling,
   /// making selection impossible inside `less`).
+  ///
+  /// Keep the origin as a plain [CellOffset] — setSelection() disposes the
+  /// anchors it is given, so anchors must be created fresh per update.
   Drag _startSelection(Offset globalPosition) {
     final box = context.findRenderObject() as RenderBox;
     final t = widget.session.terminal;
-    final base = t.buffer.createAnchorFromOffset(
-        _cellAt(box.globalToLocal(globalPosition)));
-    _termController.setSelection(base, base);
+    _selOrigin = _cellAt(box.globalToLocal(globalPosition));
+    _termController.setSelection(
+      t.buffer.createAnchorFromOffset(_selOrigin!),
+      t.buffer.createAnchorFromOffset(_selOrigin!),
+    );
     return _SelectionDrag((globalPos) {
-      final extent = t.buffer.createAnchorFromOffset(
-          _cellAt(box.globalToLocal(globalPos)));
-      _termController.setSelection(base, extent);
+      _termController.setSelection(
+        t.buffer.createAnchorFromOffset(_selOrigin!),
+        t.buffer.createAnchorFromOffset(
+            _cellAt(box.globalToLocal(globalPos))),
+      );
     });
   }
 
@@ -476,6 +520,7 @@ class _SessionViewState extends State<_SessionView> {
         controller: _termController,
         scrollController: _scrollController,
         shortcuts: _shortcuts,
+        theme: _theme,
         onSecondaryTapUp: _contextMenu,
         autofocus: true,
         padding: _padding,
