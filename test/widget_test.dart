@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:log_chard/models.dart';
-import 'package:log_chard/session.dart' show shellQuote;
+import 'package:log_chard/core/remote_cmd.dart' show sq, dq, buildLogCommand;
 import 'package:yaml/yaml.dart';
 
 void main() {
@@ -16,9 +16,27 @@ void main() {
     expect(back.servers.single.logs.single.path, '/opt/app/logs/server.log');
   });
 
-  test('shellQuote escapes single quotes', () {
-    expect(shellQuote('/a/b.log'), "'/a/b.log'");
-    expect(shellQuote("a'b"), "'a'\\''b'");
+  test('sq single-quotes and escapes embedded quotes', () {
+    expect(sq('/a/b.log'), "'/a/b.log'");
+    expect(sq("a'b"), "'a'\\''b'");
+  });
+
+  test('dq escapes outer-shell specials', () {
+    expect(dq("less 'a\$b'"), '"less \'a\\\$b\'"');
+  });
+
+  test('buildLogCommand: plain less, tmux wrap, follow variant', () {
+    final s = ServerDef(name: 'a', host: 'h', useTmux: false);
+    final l = LogFileDef(name: 'Server', path: '/var/log/server.log');
+    expect(buildLogCommand(s, l), "less '/var/log/server.log'");
+
+    final tm = ServerDef(name: 'a', host: 'h');
+    expect(
+      buildLogCommand(tm, l, follow: true),
+      "command -v tmux >/dev/null 2>&1 && "
+      "tmux new-session -A -s logchF-server \"less +F '/var/log/server.log'\" || "
+      "less +F '/var/log/server.log'",
+    );
   });
 
   test('guessColor maps conventional env names', () {

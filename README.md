@@ -17,16 +17,30 @@ servers across several environments.
   aliases, jump hosts, agent auth, certificates all keep working.
 - The app only stores its own layer: environment grouping, host aliases, and
   named log paths.
-- Planned: MCP server so AI assistants (Claude Desktop/CLI) can read and
-  reason about your logs — see [docs/design.md](docs/design.md#ai-integration-v03).
+- MCP server + companion CLI so AI assistants (Claude Desktop/CLI) can read
+  and reason about your logs — bounded, configured-paths-only access.
+  See [docs/design.md](docs/design.md).
 
 ![Concept](docs/assets/concept.png)
 
 ## Status
 
-Early design phase. See [docs/design.md](docs/design.md) for the architecture
-and [docs/idea.md](docs/idea.md) for the original analysis this project grew
-out of.
+Working MVP on `spike/pty-backend`: environment tree, YAML config,
+`~/.ssh/config` host import, tabbed `ssh -tt … less` sessions, tmux-backed
+resume, reconnect with backoff, live-follow mode (`less +F`), cross-server
+grep, and split panes.
+
+Headless tools sharing the same config (`bin/`):
+
+```
+logchard list | path | read <host> <log> [N] | search <pattern>
+logchard-mcp   # MCP server (stdio) — tools: list_environments, read_log, search_logs
+```
+
+See [docs/design.md](docs/design.md) for architecture,
+[docs/spike-01-pty.md](docs/spike-01-pty.md) for PTY findings,
+[docs/web.md](docs/web.md) for the web-build investigation, and
+[docs/idea.md](docs/idea.md) for the original analysis.
 
 ## Platform targets
 
@@ -40,7 +54,9 @@ out of.
 
 - **Flutter** — UI (sidebar, tabs, settings)
 - **[xterm.dart](https://pub.dev/packages/xterm)** — embedded terminal
-- **System OpenSSH + local PTY** — connection backend on desktop
-  ([dartssh2](https://pub.dev/packages/dartssh2) as a fallback / mobile path)
-- **SQLite/Drift** — environments, servers, log definitions
+- **System OpenSSH + local PTY** — connection backend on desktop, via a
+  vendored/patched `package:pty` ([dartssh2](https://pub.dev/packages/dartssh2)
+  as a fallback / mobile path)
+- **YAML in the app-support dir** — environments, servers, log definitions
+  (human-readable, diffable, shared with the CLI/MCP executables)
 - **OS keyring** — any credentials the app must store itself

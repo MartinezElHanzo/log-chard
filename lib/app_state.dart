@@ -14,6 +14,9 @@ class AppState extends ChangeNotifier {
   final List<LogSession> sessions = [];
   int? activeSession;
 
+  /// Index of session shown in the right split pane; null = single view.
+  int? splitIndex;
+
   Future<void> load() async {
     environments = await _store.load();
     notifyListeners();
@@ -65,15 +68,18 @@ class AppState extends ChangeNotifier {
 
   // --- sessions ---
 
-  void openLog(Environment env, ServerDef server, LogFileDef log) {
+  void openLog(Environment env, ServerDef server, LogFileDef log,
+      {String? initialPattern}) {
     final existing = sessions.indexWhere(
         (s) => s.server.host == server.host && s.log.path == log.path);
-    if (existing >= 0) {
+    if (existing >= 0 && initialPattern == null) {
       activeSession = existing;
       notifyListeners();
       return;
     }
-    final session = LogSession(environment: env, server: server, log: log)
+    final session = LogSession(
+        environment: env, server: server, log: log,
+        initialPattern: initialPattern)
       ..addListener(notifyListeners);
     sessions.add(session);
     activeSession = sessions.length - 1;
@@ -86,7 +92,7 @@ class AppState extends ChangeNotifier {
   }
 
   void closeSession(int i) {
-    sessions[i].dispose();
+    sessions[i].close();
     sessions.removeAt(i);
     if (activeSession != null) {
       if (sessions.isEmpty) {
@@ -97,6 +103,22 @@ class AppState extends ChangeNotifier {
         activeSession = activeSession! - 1;
       }
     }
+    if (splitIndex != null) {
+      if (splitIndex == i) {
+        splitIndex = null;
+      } else if (splitIndex! > i) {
+        splitIndex = splitIndex! - 1;
+      }
+      if (splitIndex != null && splitIndex! >= sessions.length) {
+        splitIndex = null;
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Side-by-side: pick which session sits in the right pane.
+  void setSplit(int? i) {
+    splitIndex = i;
     notifyListeners();
   }
 }

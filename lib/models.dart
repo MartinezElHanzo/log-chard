@@ -5,20 +5,31 @@ import 'package:yaml/yaml.dart';
 /// ssh host *alias* resolved by OpenSSH, not a raw hostname.
 
 class LogFileDef {
-  LogFileDef({required this.name, required this.path});
+  LogFileDef({required this.name, required this.path, this.follow = false});
 
   String name;
   String path;
 
-  factory LogFileDef.fromYaml(YamlMap m) =>
-      LogFileDef(name: m['name'] as String, path: m['path'] as String);
+  /// Open in live/follow mode (`less +F`) by default.
+  bool follow;
 
-  Map<String, dynamic> toMap() => {'name': name, 'path': path};
+  factory LogFileDef.fromYaml(YamlMap m) => LogFileDef(
+        name: m['name'] as String,
+        path: m['path'] as String,
+        follow: (m['follow'] as bool?) ?? false,
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'name': name, 'path': path, if (follow) 'follow': follow};
 }
 
 class ServerDef {
-  ServerDef({required this.name, required this.host, List<LogFileDef>? logs})
-      : logs = logs ?? [];
+  ServerDef({
+    required this.name,
+    required this.host,
+    this.useTmux = true,
+    List<LogFileDef>? logs,
+  }) : logs = logs ?? [];
 
   /// Display name in the tree.
   String name;
@@ -26,11 +37,17 @@ class ServerDef {
   /// ssh host alias (entry in ~/.ssh/config or resolvable hostname).
   String host;
 
+  /// Wrap log commands in a remote tmux session so they survive SSH drops
+  /// (reconnect reattaches to the same less). Auto-falls back when the
+  /// remote has no tmux.
+  bool useTmux;
+
   List<LogFileDef> logs;
 
   factory ServerDef.fromYaml(YamlMap m) => ServerDef(
         name: (m['name'] ?? m['host']) as String,
         host: m['host'] as String,
+        useTmux: (m['tmux'] as bool?) ?? true,
         logs: (m['logs'] as YamlList?)
                 ?.map((e) => LogFileDef.fromYaml(e as YamlMap))
                 .toList() ??
@@ -40,6 +57,7 @@ class ServerDef {
   Map<String, dynamic> toMap() => {
         'name': name,
         'host': host,
+        if (!useTmux) 'tmux': false,
         'logs': logs.map((l) => l.toMap()).toList(),
       };
 }

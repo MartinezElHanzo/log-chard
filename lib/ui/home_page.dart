@@ -5,6 +5,7 @@ import '../app_state.dart';
 import '../models.dart';
 import '../session.dart';
 import 'dialogs.dart';
+import 'search.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key, required this.state});
@@ -48,6 +49,11 @@ class _Sidebar extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.2)),
               const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.search, size: 18),
+                tooltip: 'Search all logs',
+                onPressed: () => showSearchDialog(context, state),
+              ),
               IconButton(
                 icon: const Icon(Icons.add, size: 18),
                 tooltip: 'New environment',
@@ -230,10 +236,31 @@ class _SessionArea extends StatelessWidget {
               ? const Center(
                   child: Text('Open a log from the explorer',
                       style: TextStyle(color: Colors.white38)))
-              : IndexedStack(
-                  index: state.activeSession ?? 0,
+              : Row(
                   children: [
-                    for (final s in sessions) _SessionView(session: s),
+                    Expanded(
+                      child: IndexedStack(
+                        index: state.activeSession ?? 0,
+                        children: [
+                          for (final s in sessions) _SessionView(session: s),
+                        ],
+                      ),
+                    ),
+                    if (state.splitIndex != null &&
+                        state.splitIndex! < sessions.length) ...[
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _SplitHeader(state: state),
+                            Expanded(
+                                child: _SessionView(
+                                    session:
+                                        sessions[state.splitIndex!])),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
           ),
@@ -316,6 +343,45 @@ class _SessionViewState extends State<_SessionView> {
   }
 }
 
+class _SplitHeader extends StatelessWidget {
+  const _SplitHeader({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 30,
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButton<int>(
+              isDense: true,
+              value: state.splitIndex,
+              underline: const SizedBox(),
+              items: [
+                for (var i = 0; i < state.sessions.length; i++)
+                  DropdownMenuItem(
+                      value: i,
+                      child: Text(state.sessions[i].title,
+                          style: const TextStyle(fontSize: 12))),
+              ],
+              onChanged: (i) => state.setSplit(i),
+            ),
+          ),
+          IconButton(
+            iconSize: 16,
+            icon: const Icon(Icons.close),
+            tooltip: 'Close split',
+            onPressed: () => state.setSplit(null),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatusBar extends StatelessWidget {
   const _StatusBar({required this.state});
 
@@ -331,7 +397,7 @@ class _StatusBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: Colors.black,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Row(
         children: [
           if (s != null) ...[
@@ -348,12 +414,52 @@ class _StatusBar extends StatelessWidget {
             const Text('idle',
                 style: TextStyle(fontSize: 11, color: Colors.white38)),
           const Spacer(),
-          if (s != null)
+          if (s != null) ...[
             Text(s.status,
                 style:
                     const TextStyle(fontSize: 11, color: Colors.white54)),
+            _BarButton(
+              icon: s.follow ? Icons.pause : Icons.play_arrow,
+              tooltip: s.follow ? 'Browse mode (less)' : 'Live mode (less +F)',
+              onPressed: s.toggleFollow,
+            ),
+            _BarButton(
+              icon: Icons.refresh,
+              tooltip: 'Reconnect',
+              onPressed: s.reconnect,
+            ),
+            _BarButton(
+              icon: Icons.vertical_split,
+              tooltip: 'Split pane',
+              onPressed: () => state.setSplit(
+                  state.splitIndex == null
+                      ? (state.activeSession! + 1) % state.sessions.length
+                      : null),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _BarButton extends StatelessWidget {
+  const _BarButton(
+      {required this.icon, required this.tooltip, required this.onPressed});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 15),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 30, minHeight: 26),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
