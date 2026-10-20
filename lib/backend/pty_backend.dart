@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:pty/pty.dart';
 
 import 'terminal_backend.dart';
@@ -7,11 +5,11 @@ import 'terminal_backend.dart';
 /// Option A backend: runs an executable inside a local pseudo-terminal.
 /// On Linux/macOS this is forkpty; on Windows, ConPTY.
 ///
-/// package:pty quirks (v0.2.x):
+/// package:pty quirks (vendored v0.2.2-pre.1):
 /// - blocking mode is broken on Windows (writes never reach the child,
 ///   exitCode never completes) — always use polling mode.
-/// - On non-Windows it prepends '-l' to arguments assuming a login shell —
-///   so spawn commands via `bash -c`, never a bare `ssh` executable.
+/// - libutil resolution, pipe-name collision, and the '-l' argv injection
+///   are fixed in the vendored copy (vendor/pty, see its pubspec notes).
 class PtyBackend implements TerminalBackend {
   PtyBackend(
     String executable,
@@ -31,28 +29,17 @@ class PtyBackend implements TerminalBackend {
     _pty.resize(cols, rows);
   }
 
-  /// Wraps a command line for spawning: on Windows run it directly, on
-  /// unix run it via `bash -c` so package:pty's '-l' injection is harmless.
-  static PtyBackend shell(
-    String commandLine, {
-    String? workingDirectory,
+  /// Convenience: spawn `ssh -tt <alias> <remoteCommand>` directly —
+  /// no local shell layer, so only remote-side quoting applies.
+  factory PtyBackend.ssh(
+    String hostAlias,
+    String remoteCommand, {
     Map<String, String>? environment,
     int cols = 80,
     int rows = 24,
   }) {
-    if (Platform.isWindows) {
-      final parts = commandLine.trim().split(RegExp(r'\s+'));
-      return PtyBackend(parts.first, parts.skip(1).toList(),
-          workingDirectory: workingDirectory,
-          environment: environment,
-          cols: cols,
-          rows: rows);
-    }
-    return PtyBackend('bash', ['-c', commandLine],
-        workingDirectory: workingDirectory,
-        environment: environment,
-        cols: cols,
-        rows: rows);
+    return PtyBackend('ssh', ['-tt', hostAlias, remoteCommand],
+        environment: environment, cols: cols, rows: rows);
   }
 
   final PseudoTerminal _pty;
