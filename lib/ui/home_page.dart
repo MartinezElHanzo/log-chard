@@ -332,8 +332,8 @@ class _SessionViewState extends State<_SessionView> {
   void initState() {
     super.initState();
     final t = widget.session.terminal;
-    t.onOutput = widget.session.backend.write;
-    t.onResize = (w, h, pw, ph) => widget.session.backend.resize(w, h);
+    t.onOutput = widget.session.write;
+    t.onResize = (w, h, pw, ph) => widget.session.resize(w, h);
   }
 
   @override

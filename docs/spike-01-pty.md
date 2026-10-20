@@ -99,3 +99,31 @@ LOGCHARD_CMD="ssh -tt <host-alias> less /opt/app/logs/server.log" flutter run -d
 - Resize propagation untested on both platforms (need interactive check).
 - Whether to keep `package:pty` long-term vs. small in-house FFI pty —
   the `-l` hack + fixed pipe name suggest vendoring is likely anyway.
+
+## Addendum — vendored fixes (post-spike)
+
+`package:pty` is now vendored under `vendor/pty`. Patches on top of
+v0.2.2-pre.1:
+
+- **libutil resolution** — try libc first, then `libutil.so.1` (Fedora
+  ships no unversioned `libutil.so` without glibc-devel).
+- **Unique ConPTY pipe names** — upstream hardcodes `\\.\pipe\mypipe`;
+  concurrent instances cross-wired output. Now per-instance names.
+- **`-l` argv injection removed** — unix impl prepended `-l` assuming a
+  shell; broke spawning `ssh` directly.
+- **FFI structs marked `final`** — required by Dart 3 on Linux AOT.
+- **Child-side exec hardening** (found on first real Linux run):
+  - `execve` → `execvp` — bare `ssh` needs PATH resolution; `execve`
+    takes absolute paths only. Failure fell through to
+    `throw PtyException('unreachable')`.
+  - **Child must never throw**: a Dart exception in the forked child runs
+    VM teardown/atexit against inherited state — including the parent's
+    X connection — producing `xcb` aborts and a hung app. On exec
+    failure the child now `perror`s (visible in the terminal) and
+    `_exit(127)`s.
+- **waitpid status decoding** — `exitCode` returns the raw status word;
+  callers must decode `WIFEXITED`/`WEXITSTATUS` (session.dart does).
+- **Session hardening** — spawn try/catch (`error` status, no retry
+  loop), stream `onError` handler, nullable backend (no
+  `LateInitializationError` on close), `write`/`resize` proxies so
+  terminal callbacks survive reconnects.

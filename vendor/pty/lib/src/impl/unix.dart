@@ -71,9 +71,20 @@ class PtyCoreUnix implements PtyCore {
     if (pid < 0) {
       throw PtyException('fork failed.');
     } else if (pid == 0) {
+      // Child — post-fork: never throw or return. A Dart exception here runs
+      // VM teardown and atexit handlers against inherited state (e.g. the
+      // parent's X connection), which aborts the whole process. On failure:
+      // report via perror (stderr is the pty) and _exit immediately.
+
       // set working directory
       if (workingDirectory != null) {
         unix.chdir(workingDirectory.toNativeUtf8());
+      }
+
+      // export env into the child environ (execvp keeps environ)
+      for (var entry in effectiveEnv.entries) {
+        unix.setenv(
+            entry.key.toNativeUtf8(), entry.value.toNativeUtf8(), 1);
       }
 
       // build argv
@@ -84,17 +95,10 @@ class PtyCoreUnix implements PtyCore {
         argv.elementAt(i + 1).value = arguments[i].toNativeUtf8();
       }
 
-      //build env
-      final env = calloc<Pointer<Utf8>>(effectiveEnv.length + 1);
-      env.elementAt(effectiveEnv.length).value = nullptr;
-      var cnt = 0;
-      for (var entry in effectiveEnv.entries) {
-        final envVal = '${entry.key}=${entry.value}';
-        env.elementAt(cnt).value = envVal.toNativeUtf8();
-        cnt++;
-      }
-
-      unix.execve(executable.toNativeUtf8(), argv, env);
+      // execvp resolves PATH (unlike execve); only returns on error
+      unix.execvp(executable.toNativeUtf8(), argv);
+      unix.perror('execvp $executable'.toNativeUtf8());
+      unix.exit_(127);
     } else {
       unix.setsid();
 

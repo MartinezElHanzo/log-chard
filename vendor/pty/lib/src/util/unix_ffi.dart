@@ -77,6 +77,9 @@ typedef _dart_execve = int Function(
   Pointer<Pointer<Utf8>> __envp,
 );
 
+typedef _c_exit_ = Void Function(Int32 status);
+typedef _dart_exit_ = void Function(int status);
+
 typedef _c_read = Int64 Function(Int32 _fd, Pointer<Void> _buf, Int32 _nbytes);
 typedef _dart_read = int Function(int _fd, Pointer<Void> _buf, int _nbytes);
 
@@ -169,6 +172,7 @@ class Unix {
     putenv = lib.lookupFunction<_c_putenv, _dart_putenv>('putenv');
     setenv = lib.lookupFunction<_c_setenv, _dart_setenv>('setenv');
     chdir = lib.lookupFunction<_c_chdir, _dart_chdir>('chdir');
+    exit_ = lib.lookupFunction<_c_exit_, _dart_exit_>('_exit');
     // On glibc >= 2.34 forkpty lives in libc (already loaded as [lib]);
     // libutil.so.1 is an empty compat stub. Prefer the process library and
     // fall back to libutil for older systems.
@@ -206,6 +210,7 @@ class Unix {
   late final _dart_putenv putenv;
   late final _dart_setenv setenv;
   late final _dart_chdir chdir;
+  late final _dart_exit_ exit_;
 }
 
 final class termios extends Struct {
