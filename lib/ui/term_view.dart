@@ -1,5 +1,3 @@
-import 'dart:ui' show ParagraphBuilder, ParagraphConstraints;
-
 import 'package:flutter/gestures.dart'
     show
         ImmediateMultiDragGestureRecognizer,
@@ -10,6 +8,11 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
+// Not part of the public surface — gives us the renderer's own
+// pixel->cell conversion (getCellOffset) so selection geometry can never
+// diverge from what is actually painted.
+// ignore: implementation_imports
+import 'package:xterm/src/ui/render.dart' show RenderTerminal;
 
 /// The terminal view for one session: xterm + our UX layer —
 /// drag selection, Ctrl+Shift clipboard keys, right-click menu,
@@ -20,11 +23,18 @@ class LogTermView extends StatefulWidget {
     required this.terminal,
     required this.onWrite,
     required this.onResize,
+    this.initialFontSize,
+    this.onFontSizeChanged,
   });
 
   final Terminal terminal;
   final void Function(String data) onWrite;
   final void Function(int cols, int rows) onResize;
+
+  /// Restored zoom level (persisted by the app); [onFontSizeChanged] is
+  /// invoked on every user zoom so it can be written back.
+  final double? initialFontSize;
+  final void Function(double fontSize)? onFontSizeChanged;
 
   @override
   State<LogTermView> createState() => LogTermViewState();
@@ -34,11 +44,11 @@ class LogTermViewState extends State<LogTermView> {
   static const _padding = EdgeInsets.all(4);
 
   final termController = TerminalController();
-  final _scrollController = ScrollController();
-  double _fontSize = _defaultFontSize;
-  Size _cellSize = Size.zero;
-  EdgeInsets _mediaPadding = EdgeInsets.zero;
+  late double _fontSize =
+      (widget.initialFontSize ?? _defaultFontSize)
+          .clamp(_minFontSize, _maxFontSize);
   CellOffset? _selOrigin;
+  RenderTerminal? _renderTerminal;
 
   static const _minFontSize = 8.0;
   static const _maxFontSize = 32.0;
@@ -105,37 +115,20 @@ class LogTermViewState extends State<LogTermView> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _measureCell();
-    _mediaPadding = MediaQuery.paddingOf(context);
+  void dispose() {
+    _renderTerminal = null;
+    super.dispose();
   }
-
-  /// Mirror xterm's own char measurement (calcCharSize) so pixel->cell
-  /// mapping for drag selection matches the renderer exactly.
-  void _measureCell() {
-    const probe = 'mmmmmmmmmm';
-    final ts = _style().toTextStyle();
-    final builder = ParagraphBuilder(ts.getParagraphStyle())
-      ..pushStyle(
-          ts.getTextStyle(textScaler: MediaQuery.textScalerOf(context)))
-      ..addText(probe);
-    final paragraph = builder.build()
-      ..layout(const ParagraphConstraints(width: double.infinity));
-    _cellSize =
-        Size(paragraph.maxIntrinsicWidth / probe.length, paragraph.height);
-    paragraph.dispose();
-  }
-
-  /// Current zoom level; [setFontSize] clamps to [_minFontSize]–[_maxFontSize].
-  double get fontSize => _fontSize;
-  void setFontSize(double size) => _applyFontSize(size);
 
   TerminalStyle _style() => TerminalStyle(
         fontSize: _fontSize,
         fontFamily: _fontFamily,
         fontFamilyFallback: _fontFallback,
       );
+
+  /// Current zoom level; [setFontSize] clamps to [_minFontSize]–[_maxFontSize].
+  double get fontSize => _fontSize;
+  void setFontSize(double size) => _applyFontSize(size);
 
   void _applyFontSize(double size) {
     final next = size.clamp(_minFontSize, _maxFontSize);
@@ -144,12 +137,8 @@ class LogTermViewState extends State<LogTermView> {
     // the rebuild so no detached-anchor state survives the zoom.
     _selOrigin = null;
     termController.clearSelection();
-    setState(() {
-      _fontSize = next;
-      // Remeasure immediately — paragraph measurement needs no layout pass,
-      // and a drag that lands before the next frame must see fresh metrics.
-      _measureCell();
-    });
+    setState(() => _fontSize = next);
+    widget.onFontSizeChanged?.call(next);
   }
 
   void _zoom(double delta) => _applyFontSize(_fontSize + delta);
@@ -182,25 +171,35 @@ class LogTermViewState extends State<LogTermView> {
     return KeyEventResult.ignored;
   }
 
-  CellOffset _cellAt(Offset local) {
-    final t = widget.terminal;
-    // Our local coords come from the RawGestureDetector box which includes
-    // the TerminalView's `padding:` (a Container). RenderTerminal then
-    // subtracts MediaQuery padding itself — so both layers must come off.
-    final x = local.dx - _padding.left - _mediaPadding.left;
-    // During a resize frame the scroll position may transiently exceed the
-    // new maxExtent — clamp to the live range like RenderTerminal does.
-    var scroll = 0.0;
-    if (_scrollController.hasClients) {
-      final pos = _scrollController.position;
-      scroll = _scrollController.offset.clamp(0.0, pos.maxScrollExtent);
+  /// Locates the xterm [RenderTerminal] inside our subtree. Cached after
+  /// first hit — its identity is stable across rebuilds, and a post-zoom
+  /// drag always gets the renderer's *current* metrics this way.
+  RenderTerminal? _findRenderTerminal() {
+    final cached = _renderTerminal;
+    if (cached != null && cached.attached) return cached;
+    _renderTerminal = null;
+    final root = context.findRenderObject();
+    if (root == null) return null;
+    void visit(RenderObject ro) {
+      if (_renderTerminal != null) return;
+      if (ro is RenderTerminal) {
+        _renderTerminal = ro;
+        return;
+      }
+      ro.visitChildren(visit);
     }
-    final y = local.dy - _padding.top - _mediaPadding.top + scroll;
-    final col =
-        (x ~/ _cellSize.width).clamp(0, t.viewWidth - 1);
-    final row =
-        (y ~/ _cellSize.height).clamp(0, t.buffer.lines.length - 1);
-    return CellOffset(col, row);
+
+    root.visitChildren(visit);
+    return _renderTerminal;
+  }
+
+  CellOffset? _cellAt(Offset globalPosition) {
+    // Use the renderer's own conversion — it knows the true cell size,
+    // scroll offset, and padding at this exact instant, so selection
+    // geometry can never diverge from what is painted.
+    final render = _findRenderTerminal();
+    if (render == null || !render.hasSize) return null;
+    return render.getCellOffset(render.globalToLocal(globalPosition));
   }
 
   /// Immediate drag recognizer: claims every drag before the alt-buffer
@@ -210,18 +209,25 @@ class LogTermViewState extends State<LogTermView> {
   /// Keep the origin as a plain [CellOffset] — setSelection() disposes the
   /// anchors it is given, so anchors must be created fresh per update.
   Drag _startSelection(Offset globalPosition) {
-    final box = context.findRenderObject() as RenderBox;
     final t = widget.terminal;
-    _selOrigin = _cellAt(box.globalToLocal(globalPosition));
+    final origin = _cellAt(globalPosition);
+    if (origin == null) {
+      // Renderer not laid out yet — return an inert drag.
+      return _SelectionDrag((_) {});
+    }
+    _selOrigin = origin;
     termController.setSelection(
-      t.buffer.createAnchorFromOffset(_selOrigin!),
-      t.buffer.createAnchorFromOffset(_selOrigin!),
+      t.buffer.createAnchorFromOffset(origin),
+      t.buffer.createAnchorFromOffset(origin),
     );
     return _SelectionDrag((globalPos) {
+      final origin = _selOrigin;
+      if (origin == null) return;
+      final extent = _cellAt(globalPos);
+      if (extent == null) return;
       termController.setSelection(
-        t.buffer.createAnchorFromOffset(_selOrigin!),
-        t.buffer.createAnchorFromOffset(
-            _cellAt(box.globalToLocal(globalPos))),
+        t.buffer.createAnchorFromOffset(origin),
+        t.buffer.createAnchorFromOffset(extent),
       );
     });
   }
@@ -290,7 +296,6 @@ class LogTermViewState extends State<LogTermView> {
         child: TerminalView(
           widget.terminal,
           controller: termController,
-          scrollController: _scrollController,
           shortcuts: _shortcuts,
           textStyle: _style(),
           theme: _theme,

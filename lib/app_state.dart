@@ -14,15 +14,28 @@ class AppState extends ChangeNotifier {
   final List<LogSession> sessions = [];
   int? activeSession;
 
+  /// User preferences persisted under the yaml `settings:` key.
+  Map<String, dynamic> settings = {};
+
   /// Index of session shown in the right split pane; null = single view.
   int? splitIndex;
 
   Future<void> load() async {
     environments = await _store.load();
+    settings = await _store.loadSettings();
     notifyListeners();
   }
 
-  Future<void> _persist() => _store.save(environments);
+  Future<void> _persist() => _store.save(environments, settings: settings);
+
+  double? get terminalFontSize =>
+      (settings['terminalFontSize'] as num?)?.toDouble();
+
+  Future<void> setTerminalFontSize(double size) async {
+    settings['terminalFontSize'] = size;
+    await _persist();
+    notifyListeners();
+  }
 
   // --- tree mutations (each persists) ---
 

@@ -17,6 +17,10 @@ class ConfigStore {
   Future<List<Environment>> load() async =>
       loadConfigFile((await _file()).path);
 
-  Future<void> save(List<Environment> envs) async =>
-      saveConfigFile((await _file()).path, envs);
+  Future<Map<String, dynamic>> loadSettings() async =>
+      loadSettingsFile((await _file()).path);
+
+  Future<void> save(List<Environment> envs,
+          {Map<String, dynamic> settings = const {}}) async =>
+      saveConfigFile((await _file()).path, envs, settings: settings);
 }

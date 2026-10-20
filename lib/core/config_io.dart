@@ -34,7 +34,17 @@ List<Environment> parseConfig(String yamlText) {
       .toList();
 }
 
-String encodeConfig(List<Environment> envs) {
+/// Non-environment user preferences (font size etc.) stored under the
+/// top-level `settings:` key. Unknown keys are preserved on round-trip.
+Map<String, dynamic> parseSettings(String yamlText) {
+  final doc = loadYaml(yamlText);
+  final raw = doc?['settings'];
+  if (raw is! YamlMap) return {};
+  return raw.map((k, v) => MapEntry(k.toString(), v));
+}
+
+String encodeConfig(List<Environment> envs,
+    {Map<String, dynamic> settings = const {}}) {
   final out = StringBuffer('# LogChard configuration\nenvironments:\n');
   for (final e in envs) {
     out.writeln('  ${_yamlKey(e.name)}:');
@@ -52,6 +62,12 @@ String encodeConfig(List<Environment> envs) {
       }
     }
   }
+  if (settings.isNotEmpty) {
+    out.writeln('settings:');
+    for (final e in settings.entries) {
+      out.writeln('  ${_yamlKey(e.key)}: ${e.value}');
+    }
+  }
   return out.toString();
 }
 
@@ -61,11 +77,18 @@ Future<List<Environment>> loadConfigFile(String path) async {
   return parseConfig(await f.readAsString());
 }
 
-Future<void> saveConfigFile(String path, List<Environment> envs) async {
+Future<Map<String, dynamic>> loadSettingsFile(String path) async {
+  final f = File(path);
+  if (!await f.exists()) return {};
+  return parseSettings(await f.readAsString());
+}
+
+Future<void> saveConfigFile(String path, List<Environment> envs,
+    {Map<String, dynamic> settings = const {}}) async {
   final f = File(path);
   await f.parent.create(recursive: true);
   final tmp = File('$path.tmp');
-  await tmp.writeAsString(encodeConfig(envs));
+  await tmp.writeAsString(encodeConfig(envs, settings: settings));
   await tmp.rename(f.path);
 }
 

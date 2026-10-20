@@ -248,7 +248,10 @@ class _SessionArea extends StatelessWidget {
                             LogTermView(
                                 terminal: s.terminal,
                                 onWrite: s.write,
-                                onResize: s.resize),
+                                onResize: s.resize,
+                                initialFontSize: state.terminalFontSize,
+                                onFontSizeChanged:
+                                    state.setTerminalFontSize),
                         ],
                       ),
                     ),
@@ -267,7 +270,11 @@ class _SessionArea extends StatelessWidget {
                                     onWrite:
                                         sessions[state.splitIndex!].write,
                                     onResize:
-                                        sessions[state.splitIndex!].resize)),
+                                        sessions[state.splitIndex!].resize,
+                                    initialFontSize:
+                                        state.terminalFontSize,
+                                    onFontSizeChanged:
+                                        state.setTerminalFontSize)),
                           ],
                         ),
                       ),
