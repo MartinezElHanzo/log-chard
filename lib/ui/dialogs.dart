@@ -12,6 +12,11 @@ const envColors = <String, Color>{
   'grey': Colors.grey,
 };
 
+/// Native-style cut/copy/paste/select-all popup for every text field —
+/// Flutter does not add one to desktop text fields by default.
+Widget _fieldMenu(BuildContext context, EditableTextState state) =>
+    AdaptiveTextSelectionToolbar.editableText(editableTextState: state);
+
 Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
   final name = TextEditingController();
   var color = 'grey';
@@ -26,6 +31,7 @@ Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
             TextField(
               controller: name,
               autofocus: true,
+              contextMenuBuilder: _fieldMenu,
               decoration: const InputDecoration(
                   labelText: 'Name', hintText: 'Production'),
               onChanged: (v) => setState(() => color = Environment.guessColor(v)),
@@ -74,6 +80,7 @@ Future<ServerDef?> showAddServerDialog(BuildContext context) {
           TextField(
             controller: host,
             autofocus: true,
+            contextMenuBuilder: _fieldMenu,
             decoration: const InputDecoration(
                 labelText: 'SSH host alias',
                 hintText: 'prod-api-01 (from ~/.ssh/config)'),
@@ -81,6 +88,7 @@ Future<ServerDef?> showAddServerDialog(BuildContext context) {
           const SizedBox(height: 8),
           TextField(
             controller: name,
+            contextMenuBuilder: _fieldMenu,
             decoration: const InputDecoration(
                 labelText: 'Display name (optional)'),
           ),
@@ -107,6 +115,8 @@ Future<ServerDef?> showAddServerDialog(BuildContext context) {
 Future<LogFileDef?> showAddLogDialog(BuildContext context) {
   final name = TextEditingController();
   final path = TextEditingController();
+  var nameEdited = false; // user typed a name -> stop autofilling
+  var filling = false; // set while we write name.text programmatically
   const presets = ['server.log', 'error.log', 'access.log', 'app.log'];
   return showDialog<LogFileDef>(
     context: context,
@@ -122,7 +132,9 @@ Future<LogFileDef?> showAddLogDialog(BuildContext context) {
                 .map((p) => ActionChip(
                       label: Text(p),
                       onPressed: () {
+                        filling = true;
                         name.text = p.replaceAll('.log', '');
+                        filling = false;
                         if (!path.text.endsWith('/')) path.text += '/';
                         path.text = path.text
                                 .replaceAll(RegExp(r'[^/]*$'), '') +
@@ -135,14 +147,27 @@ Future<LogFileDef?> showAddLogDialog(BuildContext context) {
           TextField(
             controller: path,
             autofocus: true,
+            contextMenuBuilder: _fieldMenu,
             decoration: const InputDecoration(
                 labelText: 'Remote path',
                 hintText: '/opt/app/logs/server.log'),
+            onChanged: (_) {
+              // auto-name from the path basename until the user overrides it
+              if (nameEdited) return;
+              final base = path.text.trim().split('/').last;
+              filling = true;
+              name.text = base.replaceAll('.log', '');
+              filling = false;
+            },
           ),
           const SizedBox(height: 8),
           TextField(
             controller: name,
+            contextMenuBuilder: _fieldMenu,
             decoration: const InputDecoration(labelText: 'Name'),
+            onChanged: (_) {
+              if (!filling) nameEdited = true;
+            },
           ),
         ],
       ),

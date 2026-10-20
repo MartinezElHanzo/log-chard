@@ -43,6 +43,26 @@ class LogSession extends ChangeNotifier {
   static const _backoff = [2, 5, 10, 20, 30];
   static const _maxAttempts = 5;
 
+  /// Log-level keyword coloring — wraps matches in SGR so plain `less`
+  /// output gets modern severity highlighting (ERROR red, WARN yellow,
+  /// INFO green, DEBUG grey). Color codes are opened and closed within a
+  /// single keyword, so no escape state leaks across chunk boundaries.
+  static final _severityRe = RegExp(
+      r'\b(ERROR|FATAL|SEVERE|Exception|Caused by|Traceback|WARN(?:ING)?|INFO|DEBUG)\b');
+  static const _severityColors = {
+    'ERROR': '1;31', 'FATAL': '1;31', 'SEVERE': '1;31',
+    'Exception': '1;31', 'Caused by': '1;31', 'Traceback': '1;31',
+    'WARN': '1;33', 'WARNING': '1;33',
+    'INFO': '1;32',
+    'DEBUG': '90',
+  };
+
+  static String _highlight(String data) {
+    if (!_severityRe.hasMatch(data)) return data;
+    return data.replaceAllMapped(_severityRe,
+        (m) => '\x1b[${_severityColors[m[0]]}m${m[0]}\x1b[0m');
+  }
+
   bool get follow => _follow;
   bool get alive =>
       status == 'connecting' || status == 'live' || status.startsWith('retry');
@@ -77,7 +97,7 @@ class LogSession extends ChangeNotifier {
         status = 'live';
         _attempt = 0;
       }
-      terminal.write(data);
+      terminal.write(_highlight(data));
       notifyListeners();
     }, onError: (Object e) {
       terminal.write('\r\n[logchard] backend error: $e\r\n');

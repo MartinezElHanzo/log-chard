@@ -111,6 +111,9 @@ class _SearchDialogState extends State<_SearchDialog> {
             TextField(
               controller: _pattern,
               autofocus: true,
+              contextMenuBuilder: (ctx, state) =>
+                  AdaptiveTextSelectionToolbar.editableText(
+                      editableTextState: state),
               decoration: const InputDecoration(
                 labelText: 'Pattern (remote grep)',
                 hintText: 'request-id, exception, …',

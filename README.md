@@ -34,8 +34,13 @@ Headless tools sharing the same config (`bin/`):
 
 ```
 logchard list | path | read <host> <log> [N] | search <pattern>
-logchard-mcp   # MCP server (stdio) — tools: list_environments, read_log, search_logs
+logchard-mcp   # MCP server (stdio)
 ```
+
+MCP tools: `list_environments` · `read_log` · `search_logs` (bounded,
+configured paths only) · `list_ssh_hosts` · `add/remove` for environments,
+servers, and logs — an AI assistant can manage your connections and fetch
+logs through your own ssh config without ever touching credentials.
 
 See [docs/design.md](docs/design.md) for architecture,
 [docs/spike-01-pty.md](docs/spike-01-pty.md) for PTY findings,

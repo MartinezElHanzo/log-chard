@@ -26,6 +26,10 @@ jobs:
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
       - run: flutter build linux --release
+      - name: Headless tools (CLI + MCP server)
+        run: |
+          dart compile exe bin/logchard.dart -o build/linux/x64/release/bundle/logchard
+          dart compile exe bin/mcp_server.dart -o build/linux/x64/release/bundle/logchard-mcp
       - name: Package
         run: tar czf log-chard-linux-x64.tar.gz -C build/linux/x64/release/bundle .
       - uses: softprops/action-gh-release@v2
@@ -42,6 +46,10 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter build windows --release
+      - name: Headless tools (CLI + MCP server)
+        run: |
+          dart compile exe bin/logchard.dart -o build\windows\x64\runner\Release\logchard.exe
+          dart compile exe bin/mcp_server.dart -o build\windows\x64\runner\Release\logchard-mcp.exe
       - name: Package
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath log-chard-windows-x64.zip
       - uses: softprops/action-gh-release@v2
