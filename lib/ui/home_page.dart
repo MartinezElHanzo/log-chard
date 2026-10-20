@@ -1,4 +1,9 @@
+import 'dart:ui' show ParagraphBuilder, ParagraphConstraints;
+
+import 'package:flutter/gestures.dart'
+    show ImmediateMultiDragGestureRecognizer, Drag, DragUpdateDetails;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
 import '../app_state.dart';
@@ -328,6 +333,24 @@ class _SessionView extends StatefulWidget {
 }
 
 class _SessionViewState extends State<_SessionView> {
+  static const _padding = EdgeInsets.all(4);
+
+  final _termController = TerminalController();
+  final _scrollController = ScrollController();
+  Size _cellSize = Size.zero;
+
+  // Plain (unshifted) terminal shortcuts — Ctrl+C/V/A must reach the remote
+  // side (SIGINT, readline quoted-insert/line-start), so copy/paste/select-all
+  // live on Ctrl+Shift, like gnome-terminal.
+  static final _shortcuts = <ShortcutActivator, Intent>{
+    const SingleActivator(LogicalKeyboardKey.keyC, control: true, shift: true):
+        CopySelectionTextIntent.copy,
+    const SingleActivator(LogicalKeyboardKey.keyV, control: true, shift: true):
+        const PasteTextIntent(SelectionChangedCause.keyboard),
+    const SingleActivator(LogicalKeyboardKey.keyA, control: true, shift: true):
+        const SelectAllTextIntent(SelectionChangedCause.keyboard),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -337,10 +360,135 @@ class _SessionViewState extends State<_SessionView> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return TerminalView(widget.session.terminal,
-        autofocus: true, padding: const EdgeInsets.all(4));
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Mirror xterm's own char measurement (calcCharSize) so pixel->cell
+    // mapping for drag selection matches the renderer exactly.
+    const probe = 'mmmmmmmmmm';
+    final ts = const TerminalStyle().toTextStyle();
+    final builder = ParagraphBuilder(ts.getParagraphStyle())
+      ..pushStyle(
+          ts.getTextStyle(textScaler: MediaQuery.textScalerOf(context)))
+      ..addText(probe);
+    final paragraph = builder.build()
+      ..layout(const ParagraphConstraints(width: double.infinity));
+    _cellSize =
+        Size(paragraph.maxIntrinsicWidth / probe.length, paragraph.height);
   }
+
+  @override
+  void dispose() {
+    _termController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  CellOffset _cellAt(Offset local) {
+    final t = widget.session.terminal;
+    final x = local.dx - _padding.left;
+    final y = local.dy - _padding.top + _scrollController.offset;
+    final col =
+        (x ~/ _cellSize.width).clamp(0, t.viewWidth - 1);
+    final row =
+        (y ~/ _cellSize.height).clamp(0, t.buffer.lines.length - 1);
+    return CellOffset(col, row);
+  }
+
+  /// Immediate drag recognizer: claims every drag before the alt-buffer
+  /// Scrollable can (it would otherwise turn vertical drags into scrolling,
+  /// making selection impossible inside `less`).
+  Drag _startSelection(Offset globalPosition) {
+    final box = context.findRenderObject() as RenderBox;
+    final t = widget.session.terminal;
+    final base = t.buffer.createAnchorFromOffset(
+        _cellAt(box.globalToLocal(globalPosition)));
+    _termController.setSelection(base, base);
+    return _SelectionDrag((globalPos) {
+      final extent = t.buffer.createAnchorFromOffset(
+          _cellAt(box.globalToLocal(globalPos)));
+      _termController.setSelection(base, extent);
+    });
+  }
+
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text != null) {
+      widget.session.terminal.paste(text);
+      _termController.clearSelection();
+    }
+  }
+
+  void _copySelection() {
+    final selection = _termController.selection;
+    if (selection == null) return;
+    Clipboard.setData(
+        ClipboardData(text: widget.session.terminal.buffer.getText(selection)));
+  }
+
+  void _selectAll() {
+    final t = widget.session.terminal;
+    _termController.setSelection(
+      t.buffer.createAnchor(0, t.buffer.height - t.viewHeight),
+      t.buffer.createAnchor(t.viewWidth, t.buffer.height - 1),
+    );
+  }
+
+  void _contextMenu(TapUpDetails details, CellOffset cell) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+          Rect.fromPoints(details.globalPosition, details.globalPosition),
+          Offset.zero & overlay.size),
+      items: const [
+        PopupMenuItem(value: 'copy', child: Text('Copy')),
+        PopupMenuItem(value: 'paste', child: Text('Paste')),
+        PopupMenuItem(value: 'all', child: Text('Select all')),
+      ],
+    ).then((v) {
+      switch (v) {
+        case 'copy':
+          _copySelection();
+        case 'paste':
+          _paste();
+        case 'all':
+          _selectAll();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RawGestureDetector(
+      gestures: {
+        ImmediateMultiDragGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<
+                ImmediateMultiDragGestureRecognizer>(
+          ImmediateMultiDragGestureRecognizer.new,
+          (r) => r.onStart = _startSelection,
+        ),
+      },
+      child: TerminalView(
+        widget.session.terminal,
+        controller: _termController,
+        scrollController: _scrollController,
+        shortcuts: _shortcuts,
+        onSecondaryTapUp: _contextMenu,
+        autofocus: true,
+        padding: _padding,
+      ),
+    );
+  }
+}
+
+class _SelectionDrag extends Drag {
+  _SelectionDrag(this._onUpdate);
+
+  final void Function(Offset globalPosition) _onUpdate;
+
+  @override
+  void update(DragUpdateDetails details) => _onUpdate(details.globalPosition);
 }
 
 class _SplitHeader extends StatelessWidget {
