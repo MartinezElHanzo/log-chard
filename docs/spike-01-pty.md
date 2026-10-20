@@ -60,6 +60,24 @@ v0.2.2-pre quirks, verified empirically:
 5. `workingDirectory`/`environment` are honored in 0.2.2-pre on Windows;
    we pass `Platform.environment + TERM=xterm-256color`.
 
+## Local Linux build via Docker (no Flutter needed on the Linux box)
+
+`tool/linux.Dockerfile` = Ubuntu 24.04 + GTK deps + pinned Flutter 3.47.5,
+same dep set as the release workflow.
+
+```
+docker build -f tool/linux.Dockerfile -t logchard-linux-build .
+docker run --rm -v /path/to/repo:/app -w /app logchard-linux-build \
+  bash -c "flutter pub get && flutter build linux --release"
+```
+
+Produces `build/linux/x64/release/bundle/` — verified working from Windows.
+Copy the bundle to Fedora and run `./log_chard` (glibc forward-compatible:
+built on Ubuntu 24.04, Fedora's is newer).
+
+Release builds also run in CI on tag push (`v*`) — see
+`.github/workflows/release.yaml`; artifacts attach to the GitHub Release.
+
 ## Fedora checklist (owner)
 
 ```
