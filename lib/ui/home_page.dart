@@ -9,6 +9,7 @@ import 'package:xterm/xterm.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../session.dart';
+import 'about.dart';
 import 'dialogs.dart';
 import 'search.dart';
 
@@ -69,6 +70,7 @@ class _Sidebar extends StatelessWidget {
                   }
                 },
               ),
+              const AppMenuButton(),
             ],
           ),
         ),

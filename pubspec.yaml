@@ -39,6 +39,7 @@ dependencies:
     path: vendor/pty
   path_provider: 2.0.15
   yaml: 3.1.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
