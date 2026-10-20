@@ -1,7 +1,12 @@
 import 'dart:ui' show ParagraphBuilder, ParagraphConstraints;
 
 import 'package:flutter/gestures.dart'
-    show ImmediateMultiDragGestureRecognizer, Drag, DragUpdateDetails;
+    show
+        ImmediateMultiDragGestureRecognizer,
+        Drag,
+        DragUpdateDetails,
+        PointerScrollEvent,
+        PointerSignalEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
@@ -339,9 +344,25 @@ class _SessionViewState extends State<_SessionView> {
 
   final _termController = TerminalController();
   final _scrollController = ScrollController();
+  double _fontSize = 14;
   Size _cellSize = Size.zero;
   EdgeInsets _mediaPadding = EdgeInsets.zero;
   CellOffset? _selOrigin;
+
+  static const _minFontSize = 8.0;
+  static const _maxFontSize = 32.0;
+
+  // Fedora's generic 'monospace' alias resolves inconsistently — pin a real
+  // mono stack (DejaVu Sans Mono ships on every Fedora).
+  static const _fontFamily = 'DejaVu Sans Mono';
+  static const _fontFallback = [
+    'JetBrains Mono',
+    'Fira Code',
+    'Liberation Mono',
+    'Noto Sans Mono',
+    'Courier New',
+    'monospace',
+  ];
 
   /// xterm's defaultTheme palette with a clearly visible selection color
   /// (default 0xAA grey is easy to miss on dark backgrounds).
@@ -397,7 +418,7 @@ class _SessionViewState extends State<_SessionView> {
     // Mirror xterm's own char measurement (calcCharSize) so pixel->cell
     // mapping for drag selection matches the renderer exactly.
     const probe = 'mmmmmmmmmm';
-    final ts = const TerminalStyle().toTextStyle();
+    final ts = _style().toTextStyle();
     final builder = ParagraphBuilder(ts.getParagraphStyle())
       ..pushStyle(
           ts.getTextStyle(textScaler: MediaQuery.textScalerOf(context)))
@@ -407,6 +428,55 @@ class _SessionViewState extends State<_SessionView> {
     _cellSize =
         Size(paragraph.maxIntrinsicWidth / probe.length, paragraph.height);
     _mediaPadding = MediaQuery.paddingOf(context);
+  }
+
+  TerminalStyle _style() => TerminalStyle(
+        fontSize: _fontSize,
+        fontFamily: _fontFamily,
+        fontFamilyFallback: _fontFallback,
+      );
+
+  static const _defaultFontSize = 14.0;
+
+  void _applyFontSize(double size) {
+    final next = size.clamp(_minFontSize, _maxFontSize);
+    if (next == _fontSize) return;
+    setState(() => _fontSize = next);
+    // didChangeDependencies isn't re-run by setState — remeasure now so the
+    // new cell size is in place before the next selection drag.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) didChangeDependencies();
+    });
+  }
+
+  void _zoom(double delta) => _applyFontSize(_fontSize + delta);
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent &&
+        HardwareKeyboard.instance.isControlPressed) {
+      _zoom(event.scrollDelta.dy < 0 ? 1 : -1);
+    }
+  }
+
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        HardwareKeyboard.instance.isControlPressed) {
+      switch (event.logicalKey) {
+        case LogicalKeyboardKey.equal:
+        case LogicalKeyboardKey.numpadAdd:
+          _zoom(1);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.minus:
+        case LogicalKeyboardKey.numpadSubtract:
+          _zoom(-1);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.digit0:
+        case LogicalKeyboardKey.numpad0:
+          _applyFontSize(_defaultFontSize);
+          return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -515,15 +585,20 @@ class _SessionViewState extends State<_SessionView> {
           (r) => r.onStart = _startSelection,
         ),
       },
-      child: TerminalView(
-        widget.session.terminal,
-        controller: _termController,
-        scrollController: _scrollController,
-        shortcuts: _shortcuts,
-        theme: _theme,
-        onSecondaryTapUp: _contextMenu,
-        autofocus: true,
-        padding: _padding,
+      child: Listener(
+        onPointerSignal: _onPointerSignal,
+        child: TerminalView(
+          widget.session.terminal,
+          controller: _termController,
+          scrollController: _scrollController,
+          shortcuts: _shortcuts,
+          textStyle: _style(),
+          theme: _theme,
+          onSecondaryTapUp: _contextMenu,
+          onKeyEvent: _onKeyEvent,
+          autofocus: true,
+          padding: _padding,
+        ),
       ),
     );
   }

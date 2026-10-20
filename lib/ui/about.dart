@@ -86,6 +86,8 @@ class _ShortcutsDialog extends StatelessWidget {
     ('Ctrl+Shift+C', 'copy selection'),
     ('Ctrl+Shift+V', 'paste'),
     ('Ctrl+Shift+A', 'select all'),
+    ('Ctrl+wheel', 'zoom font'),
+    ('Ctrl +/-/0', 'zoom in/out/reset'),
     ('', ''),
     ('less (remote)', ''),
     ('/', 'search forward'),
