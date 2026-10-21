@@ -90,10 +90,6 @@ class _Sidebar extends StatelessWidget {
                   ],
                 ),
         ),
-        if (state.notes.isNotEmpty) ...[
-          const Divider(height: 1),
-          SizedBox(height: 200, child: _NotesPanel(state: state)),
-        ],
       ],
     );
   }
@@ -121,31 +117,49 @@ class _NotesPanel extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.2)),
               const Spacer(),
+              if (state.notes.isNotEmpty) ...[
+                IconButton(
+                  icon: const Icon(Icons.copy_all, size: 16),
+                  tooltip: 'Copy all as markdown',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(
+                        text: state.notes
+                            .map((n) => n.toMarkdown())
+                            .join('\n')));
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_sweep, size: 16),
+                  tooltip: 'Clear all notes',
+                  onPressed: state.clearNotes,
+                ),
+              ],
               IconButton(
-                icon: const Icon(Icons.copy_all, size: 16),
-                tooltip: 'Copy all as markdown',
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(
-                      text: state.notes
-                          .map((n) => n.toMarkdown())
-                          .join('\n')));
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_sweep, size: 16),
-                tooltip: 'Clear all notes',
-                onPressed: state.clearNotes,
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'Close notes panel',
+                onPressed: () => state.setNotesPanelVisible(false),
               ),
             ],
           ),
         ),
         Expanded(
-          child: ListView(
-            children: [
-              for (final n in state.notes.reversed)
-                _NoteTile(note: n, state: state),
-            ],
-          ),
+          child: state.notes.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'No notes yet.\nSelect lines in a terminal,\nthen right-click → "Take note".',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                  ),
+                )
+              : ListView(
+                  children: [
+                    for (final n in state.notes.reversed)
+                      _NoteTile(note: n, state: state),
+                  ],
+                ),
         ),
       ],
     );
@@ -357,14 +371,17 @@ class _SessionArea extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: sessions.isEmpty
-              ? const Center(
-                  child: Text('Open a log from the explorer',
-                      style: TextStyle(color: Colors.white38)))
-              : Row(
-                  children: [
-                    Expanded(
-                      child: IndexedStack(
+          child: Row(
+            children: [
+              Expanded(
+                child: sessions.isEmpty
+                    ? const Center(
+                        child: Text('Open a log from the explorer',
+                            style: TextStyle(color: Colors.white38)))
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: IndexedStack(
                         index: state.activeSession ?? 0,
                         children: [
                           for (final s in sessions)
@@ -407,9 +424,16 @@ class _SessionArea extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ],
-                ),
+                        ],
+                      ),
+              ),
+              if (state.notesPanelVisible) ...[
+                const VerticalDivider(width: 1),
+                SizedBox(width: 300, child: _NotesPanel(state: state)),
+              ],
+            ],
           ),
+        ),
         _StatusBar(state: state),
       ],
     );
@@ -522,6 +546,7 @@ class _StatusBar extends StatelessWidget {
       child: Row(
         children: [
           if (s != null) ...[
+            const SizedBox(width: 4),
             Text(s.environment.name.toUpperCase(),
                 style: TextStyle(
                     fontSize: 11,
@@ -558,6 +583,14 @@ class _StatusBar extends StatelessWidget {
                       : null),
             ),
           ],
+          _BarButton(
+            icon: Icons.sticky_note_2_outlined,
+            tooltip:
+                'Notes (${state.notes.length}) — toggle notes panel',
+            active: state.notesPanelVisible,
+            onPressed: () =>
+                state.setNotesPanelVisible(!state.notesPanelVisible),
+          ),
         ],
       ),
     );
@@ -566,16 +599,21 @@ class _StatusBar extends StatelessWidget {
 
 class _BarButton extends StatelessWidget {
   const _BarButton(
-      {required this.icon, required this.tooltip, required this.onPressed});
+      {required this.icon,
+      required this.tooltip,
+      required this.onPressed,
+      this.active = false});
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: Icon(icon, size: 15),
+      icon: Icon(icon,
+          size: 15, color: active ? const Color(0xFF3B8EEA) : null),
       tooltip: tooltip,
       onPressed: onPressed,
       padding: EdgeInsets.zero,

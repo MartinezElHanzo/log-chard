@@ -71,6 +71,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get notesPanelVisible => settings['notesPanelVisible'] == true;
+
+  Future<void> setNotesPanelVisible(bool visible) async {
+    settings['notesPanelVisible'] = visible;
+    await _persist();
+    notifyListeners();
+  }
+
   // --- tree mutations (each persists) ---
 
   Future<void> addEnvironment(Environment env) async {
