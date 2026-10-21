@@ -1,27 +1,29 @@
 """Generate the LogChard app icon programmatically.
 
-Design: dark terminal tile + log lines + severity dots
-(green/yellow/red — same palette as the app's terminal theme).
-Renders assets/icon.png (1024) and windows/runner/resources/app_icon.ico.
+Design: an orchard tree built from terminal glyphs — the canopy is a
+stack of log lines, severity dots hang as fruit. Merges "log" and
+"orchard" in one mark.
 
     python tool/gen_icon.py
 """
 
 from PIL import Image, ImageDraw
 
-SIZE = 1024
 BG = (30, 30, 30, 255)            # terminal background #1E1E1E
 FG = (204, 204, 204, 255)         # terminal foreground #CCCCCC
-DOTS = [                          # severity palette from TerminalTheme
+TRUNK = (150, 150, 150, 255)      # slightly dimmer glyph for trunk
+ACCENT = (59, 142, 234, 255)      # selection blue #3B8EEA
+FRUIT = [                         # severity palette -> orchard fruit
     (11, 188, 121, 255),          # INFO  #0DBC79
     (229, 229, 16, 255),          # WARN  #E5E510
     (205, 49, 49, 255),           # ERROR #CD3131
 ]
-ACCENT = (59, 142, 234, 255)      # selection blue #3B8EEA
 
 
 def rounded(draw, box, radius, **kw):
-    draw.rounded_rectangle(box, radius=radius, **kw)
+    draw.rounded_rectangle(box, radius=radius, fill=kw.get('fill'),
+                           outline=kw.get('outline'),
+                           width=kw.get('width', 1))
 
 
 def render(size: int) -> Image.Image:
@@ -30,24 +32,39 @@ def render(size: int) -> Image.Image:
     s = size / 1024.0
 
     # tile
-    rounded(d, [64*s, 64*s, 960*s, 960*s], 180*s, fill=BG)
-    rounded(d, [64*s, 64*s, 960*s, 960*s], 180*s,
-            outline=ACCENT, width=int(28*s))
+    d.rounded_rectangle([64*s, 64*s, 960*s, 960*s], 180*s, fill=BG,
+                        outline=ACCENT, width=int(26*s))
 
-    # title-bar dots (terminal chrome)
-    for i, c in enumerate([(255, 95, 86, 255), (255, 189, 46, 255),
-                           (39, 201, 63, 255)]):
-        x = 128*s + i*72*s
-        d.ellipse([x, 118*s, x+44*s, 162*s], fill=c)
+    cx = 512*s
 
-    # log lines: severity dot + text bar, widths varied
-    lines = [(0, 560), (1, 640), (2, 460), (0, 620)]
-    y = 300*s
-    for sev, w in lines:
-        d.ellipse([128*s, y, 188*s, y + 60*s], fill=DOTS[sev])
-        rounded(d, [228*s, y + 8*s, 228*s + w*s, y + 52*s],
-                22*s, fill=FG)
-        y += 150*s
+    # canopy: log lines as foliage — pyramid silhouette (narrow top,
+    # wide middle, narrow bottom) reads as a tree at any size.
+    canopy = [300, 520, 600, 480, 340]
+    fruits = [0, 1, 2, 0, 1]      # severity color per line
+    sides = [1, -1, 1, -1, 1]     # alternate left/right branch ends
+    bar_h = 66*s
+    gap = 24*s
+    y = 190*s
+    for i, w in enumerate(canopy):
+        left = cx - w*s/2
+        rounded(d, [left, y, left + w*s, y + bar_h], bar_h/2, fill=FG)
+        # fruit hanging on a branch end — severity dot, orchard fruit
+        fruit = FRUIT[fruits[i]]
+        fx = left if sides[i] < 0 else left + w*s
+        fy = y + bar_h/2
+        d.ellipse([fx - 30*s, fy - 30*s, fx + 30*s, fy + 30*s],
+                  fill=fruit)
+        y += bar_h + gap
+
+    # trunk: one solid vertical bar
+    trunk_top = y - 6*s
+    trunk_bot = trunk_top + 190*s
+    rounded(d, [cx - 30*s, trunk_top, cx + 30*s, trunk_bot],
+            20*s, fill=TRUNK)
+
+    # ground line — one last log line, dimmer, spanning the roots
+    rounded(d, [cx - 300*s, trunk_bot + 20*s, cx + 300*s,
+                trunk_bot + 52*s], 16*s, fill=(90, 90, 90, 255))
 
     return img
 
@@ -64,11 +81,10 @@ def main() -> None:
         sizes=[(n, n) for n in sizes],
         append_images=resized[1:],
     )
-    # linux/desktop-entry friendly sizes
     for n in (512, 256, 128, 64, 48):
         icon.resize((n, n), Image.LANCZOS).save(
             f"assets/icon-{n}.png")
-    print("assets/icon.png + icon-{512,256,128,64,48}.png + app_icon.ico")
+    print("done")
 
 
 if __name__ == "__main__":
