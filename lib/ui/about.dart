@@ -65,6 +65,8 @@ class AppMenuButton extends StatelessWidget {
           context: context,
           applicationName: 'LogChard',
           applicationVersion: kAppVersion,
+          applicationIcon:
+              Image.asset('assets/icon-128.png', width: 48, height: 48),
           applicationLegalese:
               'Remote log explorer — each server is a tree,\n'
               'and all your logs live in one orchard.\n\n'
