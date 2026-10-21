@@ -44,11 +44,13 @@ class LogTermViewState extends State<LogTermView> {
   static const _padding = EdgeInsets.all(4);
 
   final termController = TerminalController();
+  final _scrollController = ScrollController();
   late double _fontSize =
       (widget.initialFontSize ?? _defaultFontSize)
           .clamp(_minFontSize, _maxFontSize);
   CellOffset? _selOrigin;
   RenderTerminal? _renderTerminal;
+  var _isAltBuffer = false;
 
   static const _minFontSize = 8.0;
   static const _maxFontSize = 32.0;
@@ -112,11 +114,25 @@ class LogTermViewState extends State<LogTermView> {
     widget.terminal.onOutput = widget.onWrite;
     widget.terminal.onResize =
         (w, h, pw, ph) => widget.onResize(w, h);
+    _isAltBuffer = widget.terminal.isUsingAltBuffer;
+    widget.terminal.addListener(_onTerminalUpdate);
+  }
+
+  void _onTerminalUpdate() {
+    // Only rebuild when the buffer mode flips — per-write rebuilds would
+    // repaint the whole wrapper on every output burst.
+    final v = widget.terminal.isUsingAltBuffer;
+    if (v != _isAltBuffer) {
+      _isAltBuffer = v;
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    widget.terminal.removeListener(_onTerminalUpdate);
     _renderTerminal = null;
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -293,16 +309,24 @@ class LogTermViewState extends State<LogTermView> {
       },
       child: Listener(
         onPointerSignal: _onPointerSignal,
-        child: TerminalView(
-          widget.terminal,
-          controller: termController,
-          shortcuts: _shortcuts,
-          textStyle: _style(),
-          theme: _theme,
-          onSecondaryTapUp: _contextMenu,
-          onKeyEvent: _onKeyEvent,
-          autofocus: true,
-          padding: _padding,
+        child: Scrollbar(
+          controller: _scrollController,
+          interactive: true,
+          // In the alt buffer (less/tmux fullscreen) there is no
+          // scrollback — a permanently-full thumb would just be noise.
+          thumbVisibility: !_isAltBuffer,
+          child: TerminalView(
+            widget.terminal,
+            controller: termController,
+            scrollController: _scrollController,
+            shortcuts: _shortcuts,
+            textStyle: _style(),
+            theme: _theme,
+            onSecondaryTapUp: _contextMenu,
+            onKeyEvent: _onKeyEvent,
+            autofocus: true,
+            padding: _padding,
+          ),
         ),
       ),
     );

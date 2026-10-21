@@ -56,4 +56,35 @@ void main() {
     expect(state.termController.selection, isNotNull,
         reason: 'selection after zoom-out drag');
   });
+
+  testWidgets('selection survives scrollback scrolling and new output',
+      (tester) async {
+    final t = makeTerminal();
+    final state = await pumpView(tester, t);
+    final controller =
+        tester.widget<Scrollbar>(find.byType(Scrollbar)).controller!;
+
+    await dragSelect(tester);
+    expect(state.termController.selection, isNotNull);
+
+    // Scroll up into scrollback and back to the bottom.
+    await tester.pump();
+    controller.jumpTo(0);
+    await tester.pump();
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection survives scroll-up');
+
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection survives scroll-to-bottom');
+
+    // Fresh output must not detach the anchored lines.
+    for (var i = 30; i < 60; i++) {
+      t.write('line $i\r\n');
+    }
+    await tester.pump();
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection survives incoming output');
+  });
 }
