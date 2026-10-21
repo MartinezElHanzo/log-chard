@@ -10,14 +10,17 @@ stack of log lines, severity dots hang as fruit. Merges "log" and
 from PIL import Image, ImageDraw
 
 BG = (30, 30, 30, 255)            # terminal background #1E1E1E
-FG = (204, 204, 204, 255)         # terminal foreground #CCCCCC
 TRUNK = (150, 150, 150, 255)      # slightly dimmer glyph for trunk
 ACCENT = (59, 142, 234, 255)      # selection blue #3B8EEA
-FRUIT = [                         # severity palette -> orchard fruit
-    (11, 188, 121, 255),          # INFO  #0DBC79
-    (229, 229, 16, 255),          # WARN  #E5E510
-    (205, 49, 49, 255),           # ERROR #CD3131
+# canopy palette — the terminal theme's full rainbow
+CANOPY = [
+    (11, 188, 121, 255),          # green  #0DBC79
+    (17, 168, 205, 255),          # cyan   #11A8CD
+    (59, 142, 234, 255),          # blue   #3B8EEA
+    (188, 63, 188, 255),          # magenta#BC3FBC
+    (229, 229, 16, 255),          # yellow #E5E510
 ]
+FRUIT = (205, 49, 49, 255)        # red — pops on every canopy color
 
 
 def rounded(draw, box, radius, **kw):
@@ -40,20 +43,19 @@ def render(size: int) -> Image.Image:
     # canopy: log lines as foliage — pyramid silhouette (narrow top,
     # wide middle, narrow bottom) reads as a tree at any size.
     canopy = [300, 520, 600, 480, 340]
-    fruits = [0, 1, 2, 0, 1]      # severity color per line
     sides = [1, -1, 1, -1, 1]     # alternate left/right branch ends
     bar_h = 66*s
     gap = 24*s
     y = 190*s
     for i, w in enumerate(canopy):
         left = cx - w*s/2
-        rounded(d, [left, y, left + w*s, y + bar_h], bar_h/2, fill=FG)
-        # fruit hanging on a branch end — severity dot, orchard fruit
-        fruit = FRUIT[fruits[i]]
+        rounded(d, [left, y, left + w*s, y + bar_h], bar_h/2,
+                fill=CANOPY[i % len(CANOPY)])
+        # yellow fruit hanging on a branch end — pops on every canopy color
         fx = left if sides[i] < 0 else left + w*s
         fy = y + bar_h/2
         d.ellipse([fx - 30*s, fy - 30*s, fx + 30*s, fy + 30*s],
-                  fill=fruit)
+                  fill=FRUIT)
         y += bar_h + gap
 
     # trunk: one solid vertical bar
