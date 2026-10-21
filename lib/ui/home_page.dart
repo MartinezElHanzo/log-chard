@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_state.dart';
+import '../core/notes_io.dart';
 import '../models.dart';
 import '../session.dart';
 import 'about.dart';
@@ -88,7 +90,128 @@ class _Sidebar extends StatelessWidget {
                   ],
                 ),
         ),
+        if (state.notes.isNotEmpty) ...[
+          const Divider(height: 1),
+          SizedBox(height: 200, child: _NotesPanel(state: state)),
+        ],
       ],
+    );
+  }
+}
+
+/// Captured log snippets ("take a note") — preview, copy-as-markdown,
+/// delete, copy-all.
+class _NotesPanel extends StatelessWidget {
+  const _NotesPanel({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 4, 2),
+          child: Row(
+            children: [
+              Text('NOTES (${state.notes.length})',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.copy_all, size: 16),
+                tooltip: 'Copy all as markdown',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(
+                      text: state.notes
+                          .map((n) => n.toMarkdown())
+                          .join('\n')));
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_sweep, size: 16),
+                tooltip: 'Clear all notes',
+                onPressed: state.clearNotes,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final n in state.notes.reversed)
+                _NoteTile(note: n, state: state),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NoteTile extends StatelessWidget {
+  const _NoteTile({required this.note, required this.state});
+
+  final LogNote note;
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final firstLine = note.text.split('\n').first;
+    return ListTile(
+      dense: true,
+      title: Text(note.source,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12)),
+      subtitle: Text(firstLine,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, color: Colors.white38)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.copy, size: 14),
+            tooltip: 'Copy as markdown',
+            onPressed: () =>
+                Clipboard.setData(ClipboardData(text: note.toMarkdown())),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 14),
+            tooltip: 'Delete note',
+            onPressed: () => state.removeNote(note),
+          ),
+        ],
+      ),
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text(note.source, style: const TextStyle(fontSize: 14)),
+          content: SingleChildScrollView(
+            child: SelectableText(note.text,
+                style:
+                    const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(
+                    ClipboardData(text: note.toMarkdown()));
+                Navigator.pop(context);
+              },
+              child: const Text('Copy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -251,7 +374,9 @@ class _SessionArea extends StatelessWidget {
                                 onResize: s.resize,
                                 initialFontSize: state.terminalFontSize,
                                 onFontSizeChanged:
-                                    state.setTerminalFontSize),
+                                    state.setTerminalFontSize,
+                                onTakeNote: (text) =>
+                                    state.takeNote(s, text)),
                         ],
                       ),
                     ),
@@ -274,7 +399,10 @@ class _SessionArea extends StatelessWidget {
                                     initialFontSize:
                                         state.terminalFontSize,
                                     onFontSizeChanged:
-                                        state.setTerminalFontSize)),
+                                        state.setTerminalFontSize,
+                                    onTakeNote: (text) => state.takeNote(
+                                        sessions[state.splitIndex!],
+                                        text))),
                           ],
                         ),
                       ),

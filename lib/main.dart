@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'config_store.dart';
+import 'notes_store.dart';
 import 'ui/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final state = AppState(ConfigStore());
+  final state = AppState(ConfigStore(), NotesStore());
   await state.load();
   runApp(LogChardApp(state: state));
 }

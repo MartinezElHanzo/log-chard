@@ -1,14 +1,17 @@
 import 'package:flutter/foundation.dart';
 
 import 'config_store.dart';
+import 'core/notes_io.dart';
 import 'models.dart';
+import 'notes_store.dart';
 import 'session.dart';
 
 /// Root state: environment tree (persisted) + open log sessions (ephemeral).
 class AppState extends ChangeNotifier {
-  AppState(this._store);
+  AppState(this._store, [this._notesStore]);
 
   final ConfigStore _store;
+  final NotesStore? _notesStore;
 
   List<Environment> environments = [];
   final List<LogSession> sessions = [];
@@ -17,12 +20,43 @@ class AppState extends ChangeNotifier {
   /// User preferences persisted under the yaml `settings:` key.
   Map<String, dynamic> settings = {};
 
+  /// Captured log snippets ("take a note"); persisted to notes.yaml.
+  final List<LogNote> notes = [];
+
   /// Index of session shown in the right split pane; null = single view.
   int? splitIndex;
 
   Future<void> load() async {
     environments = await _store.load();
     settings = await _store.loadSettings();
+    notes
+      ..clear()
+      ..addAll(await _notesStore?.load() ?? []);
+    notifyListeners();
+  }
+
+  Future<void> takeNote(LogSession session, String text) async {
+    if (text.trim().isEmpty) return;
+    notes.add(LogNote(
+      timestamp: DateTime.now(),
+      source:
+          '${session.environment.name} / ${session.server.name} · ${session.log.name}',
+      path: session.log.path,
+      text: text,
+    ));
+    await _notesStore?.save(notes);
+    notifyListeners();
+  }
+
+  Future<void> removeNote(LogNote note) async {
+    notes.remove(note);
+    await _notesStore?.save(notes);
+    notifyListeners();
+  }
+
+  Future<void> clearNotes() async {
+    notes.clear();
+    await _notesStore?.save(notes);
     notifyListeners();
   }
 

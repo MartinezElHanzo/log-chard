@@ -25,6 +25,7 @@ class LogTermView extends StatefulWidget {
     required this.onResize,
     this.initialFontSize,
     this.onFontSizeChanged,
+    this.onTakeNote,
   });
 
   final Terminal terminal;
@@ -35,6 +36,9 @@ class LogTermView extends StatefulWidget {
   /// invoked on every user zoom so it can be written back.
   final double? initialFontSize;
   final void Function(double fontSize)? onFontSizeChanged;
+
+  /// Called with the selected text when the user picks "Take note".
+  final void Function(String text)? onTakeNote;
 
   @override
   State<LogTermView> createState() => LogTermViewState();
@@ -279,10 +283,13 @@ class LogTermViewState extends State<LogTermView> {
       position: RelativeRect.fromRect(
           Rect.fromPoints(details.globalPosition, details.globalPosition),
           Offset.zero & overlay.size),
-      items: const [
-        PopupMenuItem(value: 'copy', child: Text('Copy')),
-        PopupMenuItem(value: 'paste', child: Text('Paste')),
-        PopupMenuItem(value: 'all', child: Text('Select all')),
+      items: [
+        const PopupMenuItem(value: 'copy', child: Text('Copy')),
+        const PopupMenuItem(value: 'paste', child: Text('Paste')),
+        const PopupMenuItem(value: 'all', child: Text('Select all')),
+        if (termController.selection != null && widget.onTakeNote != null)
+          const PopupMenuItem(
+              value: 'note', child: Text('Take note')),
       ],
     ).then((v) {
       switch (v) {
@@ -292,8 +299,20 @@ class LogTermViewState extends State<LogTermView> {
           _paste();
         case 'all':
           _selectAll();
+        case 'note':
+          _takeNote();
       }
     });
+  }
+
+  void _takeNote() {
+    final selection = termController.selection;
+    if (selection == null) return;
+    final text = widget.terminal.buffer.getText(selection).trimRight();
+    if (text.isEmpty) return;
+    widget.onTakeNote?.call(text);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Note saved'), duration: Duration(seconds: 1)));
   }
 
   @override
