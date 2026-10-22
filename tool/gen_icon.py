@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 BG = (30, 30, 30, 255)            # terminal dark #1E1E1E
 ACCENT = (59, 142, 234, 255)      # selection blue border
 SKY_GLOW = (255, 213, 79, 255)    # sun gold
-SKY = (45, 62, 50, 255)           # dusky green sky
+SKY = (26, 62, 102, 255)          # dusk blue sky
 GRASS = (56, 142, 60, 255)        # lane green
 GRASS_DARK = (39, 105, 42, 255)
 LEAF = (67, 160, 71, 255)         # canopy green
