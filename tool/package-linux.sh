@@ -21,7 +21,9 @@ docker build -f tool/linux.Dockerfile -t "$IMAGE" .
 
 # Stale artifacts from earlier mounts/broken pub states poison the
 # plugin registrant — wipe everything that isn't the final tarball.
-rm -rf build/linux linux/flutter/ephemeral \
+# .dart_tool MUST go too: a kernel compiled without dart_plugin_registrant
+# stays cache-valid and ships MissingPluginException to every tarball.
+rm -rf build/linux linux/flutter/ephemeral .dart_tool \
        .flutter-plugins .flutter-plugins-dependencies
 rm -f "$TAR"
 
@@ -41,5 +43,9 @@ docker run --rm -v "$PWD:/app" -w /app "$IMAGE" bash -euxo pipefail -c '
   tar -czf /app/build/log-chard-linux-x64.tar.gz -C /tmp/pkg .
 '
 
+cat <<'EOF'
+NOTE: .dart_tool now points at the container's /root/.pub-cache.
+On the host run `flutter pub get` before building/testing locally.
+EOF
 echo "==> $TAR"
 tar -tzvf "$TAR" | grep -vE '\./lib/|\./data/'
