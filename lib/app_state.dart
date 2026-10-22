@@ -6,12 +6,21 @@ import 'models.dart';
 import 'notes_store.dart';
 import 'session.dart';
 
+/// Builds a session for an opened log. Injectable so tests don't spawn
+/// real ssh processes.
+typedef SessionFactory = LogSession Function(
+    {required Environment environment,
+    required ServerDef server,
+    required LogFileDef log,
+    String? initialPattern});
+
 /// Root state: environment tree (persisted) + open log sessions (ephemeral).
 class AppState extends ChangeNotifier {
-  AppState(this._store, [this._notesStore]);
+  AppState(this._store, [this._notesStore, this._sessionFactory]);
 
   final ConfigStore _store;
   final NotesStore? _notesStore;
+  final SessionFactory? _sessionFactory;
 
   List<Environment> environments = [];
   final List<LogSession> sessions = [];
@@ -132,8 +141,10 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final session = LogSession(
-        environment: env, server: server, log: log,
+    final session = (_sessionFactory ?? LogSession.new)(
+        environment: env,
+        server: server,
+        log: log,
         initialPattern: initialPattern)
       ..addListener(notifyListeners);
     sessions.add(session);

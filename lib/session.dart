@@ -9,6 +9,10 @@ import 'backend/terminal_backend.dart';
 import 'core/remote_cmd.dart';
 import 'models.dart';
 
+/// Creates a backend for `ssh <host> <command>`. Injectable so tests can
+/// swap the real PTY for a fake stream.
+typedef BackendFactory = TerminalBackend Function(String host, String command);
+
 /// One open remote log view: `ssh -tt <host> <cmd>` in a PTY rendered by an
 /// xterm terminal. Sessions stay alive across tab switches, auto-reconnect
 /// on drop (with remote tmux, reconnect reattaches to the same `less`),
@@ -19,7 +23,11 @@ class LogSession extends ChangeNotifier {
     required this.server,
     required this.log,
     this.initialPattern,
-  }) : _follow = log.follow {
+    BackendFactory? backendFactory,
+    List<int>? retryBackoff,
+  })  : _backendFactory = backendFactory ?? _sshBackend,
+        _backoff = retryBackoff ?? const [2, 5, 10, 20, 30],
+        _follow = log.follow {
     _spawn();
   }
 
@@ -39,9 +47,16 @@ class LogSession extends ChangeNotifier {
   bool _closedByUser = false;
   int _attempt = 0;
   Timer? _retryTimer;
+  final BackendFactory _backendFactory;
+  final List<int> _backoff;
 
-  static const _backoff = [2, 5, 10, 20, 30];
   static const _maxAttempts = 5;
+
+  static TerminalBackend _sshBackend(String host, String command) =>
+      PtyBackend.ssh(host, command, environment: {
+        ...Platform.environment,
+        'TERM': 'xterm-256color',
+      });
 
   /// Log-level keyword coloring — wraps matches in SGR so plain `less`
   /// output gets modern severity highlighting (ERROR red, WARN yellow,
@@ -56,6 +71,9 @@ class LogSession extends ChangeNotifier {
     'INFO': '1;32',
     'DEBUG': '90',
   };
+
+  @visibleForTesting
+  static String severityHighlight(String data) => _highlight(data);
 
   static String _highlight(String data) {
     if (!_severityRe.hasMatch(data)) return data;
@@ -76,14 +94,10 @@ class LogSession extends ChangeNotifier {
 
   void _spawn() {
     try {
-      _backend = PtyBackend.ssh(
+      _backend = _backendFactory(
         server.host,
         buildLogCommand(server, log,
             follow: _follow, initialPattern: initialPattern),
-        environment: {
-          ...Platform.environment,
-          'TERM': 'xterm-256color',
-        },
       );
     } catch (e) {
       // Local spawn failure (fork/exec/ffi) — retrying won't help.

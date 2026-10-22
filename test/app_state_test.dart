@@ -4,6 +4,9 @@ import 'package:log_chard/config_store.dart';
 import 'package:log_chard/core/notes_io.dart';
 import 'package:log_chard/models.dart';
 import 'package:log_chard/notes_store.dart';
+import 'package:log_chard/session.dart';
+
+import 'fake_backend.dart';
 
 /// Stores are subclassed rather than mocked — load/save are plain
 /// methods, so we skip path_provider entirely.
@@ -104,5 +107,90 @@ void main() {
     await state.clearNotes();
     expect(state.notes, isEmpty);
     expect(notes.saved, isEmpty);
+  });
+
+  group('session lifecycle', () {
+    late FakeSessionRig rig;
+    late AppState s;
+
+    // Sessions are built on FakeBackend via the injected factory —
+    // no real ssh spawned.
+    LogSession mk(
+            {required environment,
+            required server,
+            required log,
+            initialPattern}) =>
+        LogSession(
+            environment: environment,
+            server: server,
+            log: log,
+            initialPattern: initialPattern,
+            backendFactory: rig.factory);
+
+    setUp(() {
+      rig = FakeSessionRig();
+      s = AppState(cfg, notes, mk);
+      s.environments = [rig.environment];
+    });
+
+    tearDown(() {
+      for (final sess in s.sessions) {
+        sess.close();
+      }
+    });
+
+    test('openLog adds + activates; same host+path dedups', () {
+      s.openLog(rig.environment, rig.server, rig.log);
+      expect(s.sessions.length, 1);
+      expect(s.activeSession, 0);
+
+      s.openLog(rig.environment, rig.server, rig.log);
+      expect(s.sessions.length, 1, reason: 'dedup on host+path');
+
+      // a search pattern forces a fresh tab
+      s.openLog(rig.environment, rig.server, rig.log,
+          initialPattern: 'OOM');
+      expect(s.sessions.length, 2);
+      expect(s.activeSession, 1);
+    });
+
+    test('closeSession shifts active + split indices', () {
+      s.openLog(rig.environment, rig.server, rig.log);
+      s.openLog(rig.environment, rig.server,
+          LogFileDef(name: 'err', path: '/var/log/err.log'));
+      s.openLog(rig.environment, rig.server,
+          LogFileDef(name: 'acc', path: '/var/log/acc.log'));
+      s.selectSession(2);
+      s.setSplit(1);
+
+      s.closeSession(0);
+      expect(s.activeSession, 1, reason: 'active index shifts left');
+      expect(s.splitIndex, 0, reason: 'split index shifts left');
+
+      s.closeSession(0); // closes the old middle session
+      expect(s.sessions.length, 1);
+      expect(s.activeSession, 0);
+      expect(s.splitIndex, isNull,
+          reason: 'split pointing at closed session clears');
+    });
+
+    test('closing the only session clears active + split', () {
+      s.openLog(rig.environment, rig.server, rig.log);
+      s.setSplit(0);
+      s.closeSession(0);
+      expect(s.activeSession, isNull);
+      expect(s.splitIndex, isNull);
+    });
+
+    test('takeNote captures session source + persists', () async {
+      s.openLog(rig.environment, rig.server, rig.log);
+      await s.takeNote(s.sessions[0], '  interesting line  ');
+      expect(s.notes.single.source, 'prod / web-01 · server');
+      expect(s.notes.single.path, '/var/log/server.log');
+      expect(notes.saved.single.text, '  interesting line  ');
+
+      await s.takeNote(s.sessions[0], '   ');
+      expect(s.notes.length, 1, reason: 'blank text ignored');
+    });
   });
 }
