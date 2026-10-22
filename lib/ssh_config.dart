@@ -5,12 +5,14 @@ import 'dart:io';
 ///
 /// Handles `Host` entries (skipping wildcards/negations) and follows
 /// `Include` directives (literal paths and simple globs like conf.d/*.conf).
-Future<Set<String>> readSshHostAliases() async {
-  final home =
-      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-  if (home == null) return {};
-
-  final sshDir = '$home${Platform.pathSeparator}.ssh';
+Future<Set<String>> readSshHostAliases({String? sshDir}) async {
+  final dir = sshDir ??
+      () {
+        final home = Platform.environment['HOME'] ??
+            Platform.environment['USERPROFILE'];
+        return home == null ? null : '$home${Platform.pathSeparator}.ssh';
+      }();
+  if (dir == null) return {};
   final aliases = <String>{};
   final seen = <String>{};
 
@@ -27,13 +29,13 @@ Future<Set<String>> readSshHostAliases() async {
         }
       } else if (kw == 'include') {
         for (final inc in parts.skip(1)) {
-          await _include(inc, sshDir, parse, depth);
+          await _include(inc, dir, parse, depth);
         }
       }
     }
   }
 
-  await parse(File('$sshDir${Platform.pathSeparator}config'), 0);
+  await parse(File('$dir${Platform.pathSeparator}config'), 0);
   return aliases;
 }
 
