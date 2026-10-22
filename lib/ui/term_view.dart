@@ -1,10 +1,14 @@
 import 'package:flutter/gestures.dart'
     show
-        ImmediateMultiDragGestureRecognizer,
-        Drag,
-        DragUpdateDetails,
+        GestureDisposition,
+        OneSequenceGestureRecognizer,
+        PointerDownEvent,
+        PointerMoveEvent,
+        PointerUpEvent,
+        PointerCancelEvent,
         PointerScrollEvent,
-        PointerSignalEvent;
+        PointerSignalEvent,
+        kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
@@ -222,34 +226,72 @@ class LogTermViewState extends State<LogTermView> {
     return render.getCellOffset(render.globalToLocal(globalPosition));
   }
 
-  /// Immediate drag recognizer: claims every drag before the alt-buffer
-  /// Scrollable can (it would otherwise turn vertical drags into scrolling,
-  /// making selection impossible inside `less`).
-  ///
-  /// Keep the origin as a plain [CellOffset] — setSelection() disposes the
-  /// anchors it is given, so anchors must be created fresh per update.
-  Drag _startSelection(Offset globalPosition) {
+  // --- selection gestures ---
+  //
+  // Our recognizer claims the pointer at pointer-DOWN (eager), so the
+  // alt-buffer InfiniteScrollView can never win the arena for a vertical
+  // drag (it resolves only after slop — by then we already own the seq).
+  // Trade-off: xterm's tap/double-tap handlers lose every primary down,
+  // so double-click word select is reimplemented here.
+
+  Offset? _selDownPos;
+  DateTime _lastTap = DateTime.fromMillisecondsSinceEpoch(0);
+  CellOffset? _lastTapCell;
+  var _selMoved = false;
+
+  void _selDown(Offset globalPosition) {
     final t = widget.terminal;
+    _selDownPos = globalPosition;
+    _selMoved = false;
     final origin = _cellAt(globalPosition);
-    if (origin == null) {
-      // Renderer not laid out yet — return an inert drag.
-      return _SelectionDrag((_) {});
-    }
     _selOrigin = origin;
+    if (origin == null) return;
     termController.setSelection(
       t.buffer.createAnchorFromOffset(origin),
       t.buffer.createAnchorFromOffset(origin),
     );
-    return _SelectionDrag((globalPos) {
-      final origin = _selOrigin;
-      if (origin == null) return;
-      final extent = _cellAt(globalPos);
-      if (extent == null) return;
-      termController.setSelection(
-        t.buffer.createAnchorFromOffset(origin),
-        t.buffer.createAnchorFromOffset(extent),
-      );
-    });
+  }
+
+  void _selMove(Offset globalPosition) {
+    final origin = _selOrigin;
+    final downPos = _selDownPos;
+    if (downPos != null &&
+        (globalPosition - downPos).distance > 4) {
+      _selMoved = true;
+    }
+    if (origin == null) return;
+    final extent = _cellAt(globalPosition);
+    if (extent == null) return;
+    final t = widget.terminal;
+    termController.setSelection(
+      t.buffer.createAnchorFromOffset(origin),
+      t.buffer.createAnchorFromOffset(extent),
+    );
+  }
+
+  void _selEnd(Offset globalPosition) {
+    if (!_selMoved) {
+      // Tap, not drag. Double-tap on the same cell → word select
+      // (xterm's own double-tap loses the arena to our eager claim).
+      final cell = _cellAt(globalPosition);
+      final now = DateTime.now();
+      if (cell != null &&
+          cell == _lastTapCell &&
+          now.difference(_lastTap).inMilliseconds < 350) {
+        _lastTapCell = null;
+        final render = _findRenderTerminal();
+        if (render != null) {
+          render.selectWord(render.globalToLocal(globalPosition));
+        }
+      } else {
+        // Single tap — collapse instead of leaving a 1-cell highlight.
+        termController.clearSelection();
+        _lastTap = now;
+        _lastTapCell = cell;
+      }
+    }
+    _selOrigin = null;
+    _selDownPos = null;
   }
 
   Future<void> _paste() async {
@@ -319,11 +361,14 @@ class LogTermViewState extends State<LogTermView> {
   Widget build(BuildContext context) {
     return RawGestureDetector(
       gestures: {
-        ImmediateMultiDragGestureRecognizer:
+        _SelectionGestureRecognizer:
             GestureRecognizerFactoryWithHandlers<
-                ImmediateMultiDragGestureRecognizer>(
-          ImmediateMultiDragGestureRecognizer.new,
-          (r) => r.onStart = _startSelection,
+                _SelectionGestureRecognizer>(
+          _SelectionGestureRecognizer.new,
+          (r) => r
+            ..onDown = _selDown
+            ..onMove = _selMove
+            ..onUp = _selEnd,
         ),
       },
       child: Listener(
@@ -352,11 +397,41 @@ class LogTermViewState extends State<LogTermView> {
   }
 }
 
-class _SelectionDrag extends Drag {
-  _SelectionDrag(this._onUpdate);
-
-  final void Function(Offset globalPosition) _onUpdate;
+/// Eager primary-button gesture: wins the arena at pointer-down, so the
+/// alt-buffer scrollable can't steal drags for scrolling. Primary button
+/// only — secondary taps reach the context-menu handler.
+class _SelectionGestureRecognizer extends OneSequenceGestureRecognizer {
+  void Function(Offset globalPosition)? onDown;
+  void Function(Offset globalPosition)? onMove;
+  void Function(Offset globalPosition)? onUp;
 
   @override
-  void update(DragUpdateDetails details) => _onUpdate(details.globalPosition);
+  void addAllowedPointer(PointerDownEvent event) {
+    if (event.buttons != kPrimaryButton) {
+      resolve(GestureDisposition.rejected);
+      return;
+    }
+    // Claim immediately — this is what makes selection beat the Scrollable.
+    resolve(GestureDisposition.accepted);
+    startTrackingPointer(event.pointer);
+    onDown?.call(event.position);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent) {
+      onMove?.call(event.position);
+    } else if (event is PointerUpEvent) {
+      onUp?.call(event.position);
+      stopTrackingPointer(event.pointer);
+    } else if (event is PointerCancelEvent) {
+      stopTrackingPointer(event.pointer);
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {}
+
+  @override
+  String get debugDescription => 'selection';
 }

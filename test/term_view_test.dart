@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:log_chard/ui/term_view.dart';
@@ -86,5 +87,56 @@ void main() {
     await tester.pump();
     expect(state.termController.selection, isNotNull,
         reason: 'selection survives incoming output');
+  });
+
+  testWidgets('drag selection still works after wheel scroll', (tester) async {
+    final t = makeTerminal();
+    final state = await pumpView(tester, t);
+    final controller =
+        tester.widget<Scrollbar>(find.byType(Scrollbar)).controller!;
+
+    // Scroll up into scrollback (offset > 0 like a wheel scroll).
+    await tester.pump();
+    controller.jumpTo(0);
+    await tester.pump();
+
+    await dragSelect(tester);
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection after scroll');
+
+    // Scroll again mid-way, select again.
+    controller.jumpTo(controller.position.maxScrollExtent / 2);
+    await tester.pump();
+    await dragSelect(tester);
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection after second scroll');
+  });
+
+  testWidgets('drag selection works in the alt buffer (less mode)',
+      (tester) async {
+    final t = makeTerminal();
+    t.useAltBuffer();
+    for (var i = 0; i < 40; i++) {
+      t.write('alt line $i: log output here\r\n');
+    }
+    final state = await pumpView(tester, t);
+    expect(t.isUsingAltBuffer, isTrue);
+
+    // Vertical-ish drag — the gesture a user makes to select lines.
+    await dragSelect(tester);
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection in alt buffer');
+
+    // Wheel scroll (less scrolls via arrow-key simulation), then select
+    // again — the reported repro: scroll once, selection dies.
+    final center = tester.getCenter(find.byType(LogTermView));
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(center);
+    await tester.sendEventToBinding(
+        pointer.scroll(const Offset(0, -60)));
+    await tester.pump();
+    await dragSelect(tester);
+    expect(state.termController.selection, isNotNull,
+        reason: 'selection after alt-buffer scroll');
   });
 }
