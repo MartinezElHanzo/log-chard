@@ -1,32 +1,24 @@
-"""Generate the LogChard app icon programmatically.
+"""Generate the LogChard app icon — stylized orchard alley.
 
-Design: an orchard tree built from terminal glyphs — the canopy is a
-stack of log lines, severity dots hang as fruit. Merges "log" and
-"orchard" in one mark.
+Two rows of apple trees recede toward a sunlit vanishing point, green
+grass lane between them. Flat/geometric take on the reference orchard
+photo; severity-red dots serve as the apples.
 
     python tool/gen_icon.py
 """
 
 from PIL import Image, ImageDraw
 
-BG = (30, 30, 30, 255)            # terminal background #1E1E1E
-TRUNK = (150, 150, 150, 255)      # slightly dimmer glyph for trunk
-ACCENT = (59, 142, 234, 255)      # selection blue #3B8EEA
-# canopy palette — the terminal theme's full rainbow
-CANOPY = [
-    (11, 188, 121, 255),          # green  #0DBC79
-    (17, 168, 205, 255),          # cyan   #11A8CD
-    (59, 142, 234, 255),          # blue   #3B8EEA
-    (188, 63, 188, 255),          # magenta#BC3FBC
-    (229, 229, 16, 255),          # yellow #E5E510
-]
-FRUIT = (205, 49, 49, 255)        # red — pops on every canopy color
-
-
-def rounded(draw, box, radius, **kw):
-    draw.rounded_rectangle(box, radius=radius, fill=kw.get('fill'),
-                           outline=kw.get('outline'),
-                           width=kw.get('width', 1))
+BG = (30, 30, 30, 255)            # terminal dark #1E1E1E
+ACCENT = (59, 142, 234, 255)      # selection blue border
+SKY_GLOW = (255, 213, 79, 255)    # sun gold
+SKY = (45, 62, 50, 255)           # dusky green sky
+GRASS = (56, 142, 60, 255)        # lane green
+GRASS_DARK = (39, 105, 42, 255)
+LEAF = (67, 160, 71, 255)         # canopy green
+LEAF_DARK = (46, 125, 50, 255)
+APPLE = (205, 49, 49, 255)        # severity red
+TRUNK = (109, 76, 65, 255)        # brown
 
 
 def render(size: int) -> Image.Image:
@@ -34,41 +26,60 @@ def render(size: int) -> Image.Image:
     d = ImageDraw.Draw(img)
     s = size / 1024.0
 
-    # tile
-    d.rounded_rectangle([64*s, 64*s, 960*s, 960*s], 180*s, fill=BG,
-                        outline=ACCENT, width=int(26*s))
+    # tile with sky fill
+    d.rounded_rectangle([64*s, 64*s, 960*s, 960*s], 180*s, fill=SKY)
 
-    cx = 512*s
+    # sun at the vanishing point — soft halo + solid disc
+    vx, vy = 512*s, 470*s
+    for r, a in [(210, 35), (140, 70), (90, 120)]:
+        d.ellipse([vx-r*s, vy-r*s, vx+r*s, vy+r*s],
+                  fill=(SKY_GLOW[0], SKY_GLOW[1], SKY_GLOW[2], a))
+    d.ellipse([vx-62*s, vy-62*s, vx+62*s, vy+62*s], fill=SKY_GLOW)
 
-    # canopy: log lines as foliage — pyramid silhouette (narrow top,
-    # wide middle, narrow bottom) reads as a tree at any size.
-    canopy = [300, 520, 600, 480, 340]
-    sides = [1, -1, 1, -1, 1]     # alternate left/right branch ends
-    bar_h = 66*s
-    gap = 24*s
-    y = 190*s
-    for i, w in enumerate(canopy):
-        left = cx - w*s/2
-        rounded(d, [left, y, left + w*s, y + bar_h], bar_h/2,
-                fill=CANOPY[i % len(CANOPY)])
-        # yellow fruit hanging on a branch end — pops on every canopy color
-        fx = left if sides[i] < 0 else left + w*s
-        fy = y + bar_h/2
-        d.ellipse([fx - 30*s, fy - 30*s, fx + 30*s, fy + 30*s],
-                  fill=FRUIT)
-        y += bar_h + gap
+    # grass lane: trapezoid from bottom edge to vanishing point
+    d.polygon([(64*s, 960*s), (960*s, 960*s), (vx+55*s, vy), (vx-55*s, vy)],
+              fill=GRASS)
+    d.polygon([(280*s, 960*s), (744*s, 960*s), (vx+18*s, vy), (vx-18*s, vy)],
+              fill=GRASS_DARK)
 
-    # trunk: one solid vertical bar
-    trunk_top = y - 6*s
-    trunk_bot = trunk_top + 190*s
-    rounded(d, [cx - 30*s, trunk_top, cx + 30*s, trunk_bot],
-            20*s, fill=TRUNK)
+    def tree(cx_, cy_, r, flip):
+        """One apple tree: trunk, two-tone canopy, red apples."""
+        # trunk
+        d.rounded_rectangle([cx_-r*0.10*s, cy_, cx_+r*0.10*s,
+                             cy_+r*1.05*s], r*0.08*s, fill=TRUNK)
+        # canopy: dark under-layer, light top blob
+        d.ellipse([cx_-r*s, cy_-r*0.95*s, cx_+r*s, cy_+r*0.55*s],
+                  fill=LEAF_DARK)
+        d.ellipse([cx_-r*0.82*s, cy_-r*1.12*s, cx_+r*0.82*s,
+                   cy_+r*0.32*s], fill=LEAF)
+        # apples — red dots scattered on the canopy
+        for ax, ay, ar in [(-0.42, -0.35, 0.16), (0.30, -0.55, 0.14),
+                           (0.05, -0.05, 0.15), (-0.15, -0.75, 0.12),
+                           (0.55*flip, -0.15, 0.13)]:
+            d.ellipse([cx_+(ax-ar)*r*s, cy_+(ay-ar)*r*s,
+                       cx_+(ax+ar)*r*s, cy_+(ay+ar)*r*s], fill=APPLE)
 
-    # ground line — one last log line, dimmer, spanning the roots
-    rounded(d, [cx - 300*s, trunk_bot + 20*s, cx + 300*s,
-                trunk_bot + 52*s], 16*s, fill=(90, 90, 90, 255))
+    # two rows receding to the vanishing point — near big, far small
+    # (x, canopy-center-y, radius, flip)
+    trees = [
+        (230, 720, 150, 1), (794, 720, 150, -1),
+        (350, 630, 105, -1), (674, 630, 105, 1),
+        (440, 560, 68, 1), (584, 560, 68, -1),
+    ]
+    for x, y, r, flip in trees:
+        tree(x*s, y*s, r, flip)
 
-    return img
+    # clip the whole scene to the rounded tile, then stroke the border
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [64*s, 64*s, 960*s, 960*s], 180*s, fill=255)
+    clipped = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    clipped.paste(img, (0, 0), mask)
+    ImageDraw.Draw(clipped).rounded_rectangle(
+        [64*s, 64*s, 960*s, 960*s], 180*s,
+        outline=ACCENT, width=int(26*s))
+
+    return clipped
 
 
 def main() -> None:
