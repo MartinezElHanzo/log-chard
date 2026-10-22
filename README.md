@@ -23,12 +23,22 @@ servers across several environments.
 
 ![Concept](docs/assets/concept.png)
 
-## Status
+## Features
 
-Working MVP on `spike/pty-backend`: environment tree, YAML config,
-`~/.ssh/config` host import, tabbed `ssh -tt … less` sessions, tmux-backed
-resume, reconnect with backoff, live-follow mode (`less +F`), cross-server
-grep, and split panes.
+- Environment tree with per-env color coding, server/log management UI, and
+  `~/.ssh/config` host import.
+- Tabbed `ssh -tt … less` sessions with **tmux-backed persistence** —
+  reconnect reattaches to the same `less` on the remote.
+- Auto-reconnect with backoff, live-follow toggle (`less +F`), split panes.
+- Cross-server bounded `grep` search across configured logs.
+- Terminal UX: drag-select that survives scrolling and zoom, Ctrl+wheel /
+  Ctrl+±/0 font zoom (persisted), scrollback scrollbar, visible selection,
+  severity highlighting (ERROR red, WARN yellow, INFO green, DEBUG grey),
+  right-click copy/paste menu, double-click word select.
+- **Take note**: select lines → right-click → saves a timestamped note with
+  env/server/log/path context to `notes.yaml`; toggleable right panel, one
+  click copies notes as paste-ready markdown.
+- App menu with keyboard-shortcut reference, licenses page, and a star link.
 
 Headless tools sharing the same config (`bin/`):
 
@@ -42,6 +52,16 @@ configured paths only) · `list_ssh_hosts` · `add/remove` for environments,
 servers, and logs — an AI assistant can manage your connections and fetch
 logs through your own ssh config without ever touching credentials.
 
+## Install (Linux)
+
+```bash
+tar xzf log-chard-linux-x64.tar.gz && cd bundle && ./install.sh
+# app → ~/.local/lib/log-chard, CLIs → ~/.local/bin, icon + .desktop installed
+```
+
+Or just run `./log_chard` in place. Build from source with
+`bash tool/package-linux.sh` (needs Docker).
+
 See [docs/design.md](docs/design.md) for architecture,
 [docs/spike-01-pty.md](docs/spike-01-pty.md) for PTY findings,
 [docs/web.md](docs/web.md) for the web-build investigation, and
@@ -51,17 +71,28 @@ See [docs/design.md](docs/design.md) for architecture,
 
 | Platform | Priority | Notes |
 | -------- | -------- | ----- |
-| Linux (Fedora) | Primary | Development target |
-| Windows | Later | Needs ConPTY for local `ssh` spawning |
+| Linux (Fedora) | Primary | Development target, tarball ships app + CLI + MCP |
+| Windows | Working | ConPTY backend via vendored `pty`; release zip in CI |
 | Web | Maybe | Browser can't open raw SSH sockets — requires a relay backend |
 
-## Planned stack
+## Stack
 
 - **Flutter** — UI (sidebar, tabs, settings)
 - **[xterm.dart](https://pub.dev/packages/xterm)** — embedded terminal
+  (vendored + patched, see `vendor/README.md`)
 - **System OpenSSH + local PTY** — connection backend on desktop, via a
   vendored/patched `package:pty` ([dartssh2](https://pub.dev/packages/dartssh2)
   as a fallback / mobile path)
-- **YAML in the app-support dir** — environments, servers, log definitions
-  (human-readable, diffable, shared with the CLI/MCP executables)
-- **OS keyring** — any credentials the app must store itself
+- **YAML in the app-support dir** — environments, servers, log definitions,
+  settings (human-readable, diffable, shared with the CLI/MCP executables)
+
+## Security
+
+LogChard runs the remote commands you configure, on hosts you configure.
+It never reads SSH keys or credentials — auth stays with your ssh config
+and agent. See [SECURITY.md](SECURITY.md) for scope and reporting.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Vendored dependencies keep their own
+licenses under `vendor/`.

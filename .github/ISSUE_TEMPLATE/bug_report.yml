@@ -1,0 +1,26 @@
+name: Bug report
+description: Something is broken in LogChard
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what happened instead.
+      placeholder: Opened a log, scrolled in less, then drag-selection stopped working.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, LogChard version/commit, remote OS + ssh version if relevant.
+      placeholder: "Fedora 42, v0.1 tarball; remote Ubuntu 24.04"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output / logs
+      description: Console output, stack traces. Do NOT paste real hostnames, paths containing credentials, or log content with secrets.
+      render: text

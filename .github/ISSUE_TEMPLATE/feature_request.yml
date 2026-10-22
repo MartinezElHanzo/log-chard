@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does it solve?
+      description: The workflow pain point, not just the feature.
+      placeholder: Copying a stack trace into a ticket takes 4 steps.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed shape
+      description: Rough idea is fine — command, menu entry, config key, MCP tool.
+    validations:
+      required: false
