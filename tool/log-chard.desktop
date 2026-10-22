@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LogChard
+Comment=Remote log explorer — SSH log orchard
+Exec=log_chard
+Icon=log-chard
+Terminal=false
+Categories=Development;Utility;
+Keywords=log;ssh;terminal;remote;
