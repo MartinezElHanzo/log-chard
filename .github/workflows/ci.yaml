@@ -2,6 +2,8 @@ name: ci
 
 # Cheap checks only — no builds. Release builds are in release.yaml (tags).
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
