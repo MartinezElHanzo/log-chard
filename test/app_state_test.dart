@@ -93,6 +93,24 @@ void main() {
     expect(cfg.savedSettings['notesPanelVisible'], true);
   });
 
+  test('updateLog replaces in place + persists', () async {
+    final srv = ServerDef(name: 'w1', host: 'web-01', logs: [
+      LogFileDef(name: 'a', path: '/v/a.log'),
+      LogFileDef(name: 'b', path: '/v/b.log'),
+    ]);
+    await state.updateLog(
+        srv, srv.logs[1], LogFileDef(name: 'b2', path: '/v/b2.log'));
+    expect(srv.logs[0].path, '/v/a.log');
+    expect(srv.logs[1].name, 'b2');
+    expect(srv.logs[1].path, '/v/b2.log');
+    expect(cfg.saveCalls, 1);
+
+    // unknown log is a no-op
+    await state.updateLog(
+        srv, LogFileDef(name: 'x', path: '/x'), srv.logs[0]);
+    expect(cfg.saveCalls, 1);
+  });
+
   test('note removal + clear persist', () async {
     final n1 = LogNote(
         timestamp: DateTime.now(), source: 'a/b · c', path: '/x', text: 't1');

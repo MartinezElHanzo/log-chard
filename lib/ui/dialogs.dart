@@ -112,16 +112,18 @@ Future<ServerDef?> showAddServerDialog(BuildContext context) {
   );
 }
 
-Future<LogFileDef?> showAddLogDialog(BuildContext context) {
-  final name = TextEditingController();
-  final path = TextEditingController();
-  var nameEdited = false; // user typed a name -> stop autofilling
+Future<LogFileDef?> showAddLogDialog(BuildContext context,
+    {LogFileDef? existing}) {
+  final name = TextEditingController(text: existing?.name);
+  final path = TextEditingController(text: existing?.path);
+  // Prefilled name counts as user-owned — don't autofill over it.
+  var nameEdited = existing != null;
   var filling = false; // set while we write name.text programmatically
   const presets = ['server.log', 'error.log', 'access.log', 'app.log'];
   return showDialog<LogFileDef>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Add log file'),
+      title: Text(existing == null ? 'Add log file' : 'Edit log file'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,7 +184,7 @@ Future<LogFileDef?> showAddLogDialog(BuildContext context) {
                       ? path.text.trim().split('/').last
                       : name.text.trim(),
                   path: path.text.trim())),
-          child: const Text('Add'),
+          child: Text(existing == null ? 'Add' : 'Save'),
         ),
       ],
     ),

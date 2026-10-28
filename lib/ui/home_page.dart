@@ -343,10 +343,12 @@ class _ServerTile extends StatelessWidget {
                       itemBuilder: (_) => const [
                         PopupMenuItem(value: 'open', child: Text('Open')),
                         PopupMenuItem(
+                            value: 'edit', child: Text('Edit...')),
+                        PopupMenuItem(
                             value: 'remove', child: Text('Remove log file')),
                       ],
                       onSelected: (v) =>
-                          _onLogMenu(v, state, env, server, log),
+                          _onLogMenu(context, v, state, env, server, log),
                     ),
                   ],
                 ),
@@ -371,17 +373,21 @@ void _logMenu(BuildContext context, Offset at, AppState state,
         at & const Size(1, 1), Offset.zero & overlay.size),
     items: const [
       PopupMenuItem(value: 'open', child: Text('Open')),
+      PopupMenuItem(value: 'edit', child: Text('Edit...')),
       PopupMenuItem(value: 'remove', child: Text('Remove log file')),
     ],
   );
-  if (context.mounted) _onLogMenu(v, state, env, server, log);
+  if (context.mounted) _onLogMenu(context, v, state, env, server, log);
 }
 
-void _onLogMenu(String? v, AppState state, Environment env,
-    ServerDef server, LogFileDef log) {
+void _onLogMenu(BuildContext context, String? v, AppState state,
+    Environment env, ServerDef server, LogFileDef log) async {
   switch (v) {
     case 'open':
       state.openLog(env, server, log);
+    case 'edit':
+      final updated = await showAddLogDialog(context, existing: log);
+      if (updated != null) await state.updateLog(server, log, updated);
     case 'remove':
       state.removeLog(server, log);
   }

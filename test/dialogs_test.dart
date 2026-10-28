@@ -6,13 +6,15 @@ import 'package:log_chard/ui/dialogs.dart';
 /// Pumps a button that launches [showAddLogDialog]; the returned future
 /// completes when the dialog is dismissed.
 Future<void> Function(WidgetTester) _pumpDialog(
-        void Function(LogFileDef?) onResult) =>
+        void Function(LogFileDef?) onResult,
+        {LogFileDef? existing}) =>
     (t) async {
       await t.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Builder(
             builder: (ctx) => TextButton(
-              onPressed: () => showAddLogDialog(ctx).then(onResult),
+              onPressed: () =>
+                  showAddLogDialog(ctx, existing: existing).then(onResult),
               child: const Text('open'),
             ),
           ),
@@ -67,5 +69,29 @@ void main() {
     await t.tap(find.text('Add'));
     await t.pumpAndSettle();
     expect(result!.name, 'c.log');
+  });
+
+  testWidgets('edit mode prefills fields, path change keeps name', (t) async {
+    LogFileDef? result;
+    await _pumpDialog(
+            (r) => result = r,
+            existing: LogFileDef(
+                name: 'server', path: '/var/log/app/server.log'))(t);
+    final fields = find.byType(TextField);
+
+    expect(find.text('Edit log file'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'server'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '/var/log/app/server.log'),
+        findsOneWidget);
+
+    // Editing the path must not rename — prefilled name is user-owned.
+    await t.enterText(fields.first, '/var/log/app/error.log');
+    await t.pump();
+    expect(find.widgetWithText(TextField, 'server'), findsOneWidget);
+
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(result!.name, 'server');
+    expect(result!.path, '/var/log/app/error.log');
   });
 }

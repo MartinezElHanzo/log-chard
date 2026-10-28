@@ -120,6 +120,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replace [log] in place — keeps its position in the sidebar.
+  Future<void> updateLog(
+      ServerDef server, LogFileDef log, LogFileDef updated) async {
+    final i = server.logs.indexOf(log);
+    if (i < 0) return;
+    server.logs[i] = updated;
+    await _persist();
+    notifyListeners();
+  }
+
   Future<void> removeLog(ServerDef server, LogFileDef log) async {
     server.logs.remove(log);
     await _persist();
