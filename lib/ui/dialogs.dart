@@ -17,14 +17,17 @@ const envColors = <String, Color>{
 Widget _fieldMenu(BuildContext context, EditableTextState state) =>
     AdaptiveTextSelectionToolbar.editableText(editableTextState: state);
 
-Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
-  final name = TextEditingController();
-  var color = 'grey';
+Future<Environment?> showAddEnvironmentDialog(BuildContext context,
+    {Environment? existing}) {
+  final name = TextEditingController(text: existing?.name);
+  var color = existing?.color ?? 'grey';
+  // Manual dropdown picks (or a prefilled env) stop name->color guessing.
+  var colorEdited = existing != null;
   return showDialog<Environment>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setState) => AlertDialog(
-        title: const Text('New environment'),
+        title: Text(existing == null ? 'New environment' : 'Edit environment'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -34,7 +37,11 @@ Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
               contextMenuBuilder: _fieldMenu,
               decoration: const InputDecoration(
                   labelText: 'Name', hintText: 'Production'),
-              onChanged: (v) => setState(() => color = Environment.guessColor(v)),
+              onChanged: (v) {
+                if (!colorEdited) {
+                  setState(() => color = Environment.guessColor(v));
+                }
+              },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -49,7 +56,10 @@ Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
                         Text(k),
                       ])))
                   .toList(),
-              onChanged: (v) => color = v ?? 'grey',
+              onChanged: (v) {
+                colorEdited = true;
+                color = v ?? 'grey';
+              },
             ),
           ],
         ),
@@ -59,7 +69,7 @@ Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
           FilledButton(
             onPressed: () => Navigator.pop(
                 ctx, Environment(name: name.text.trim(), color: color)),
-            child: const Text('Add'),
+            child: Text(existing == null ? 'Add' : 'Save'),
           ),
         ],
       ),
@@ -67,13 +77,14 @@ Future<Environment?> showAddEnvironmentDialog(BuildContext context) {
   );
 }
 
-Future<ServerDef?> showAddServerDialog(BuildContext context) {
-  final host = TextEditingController();
-  final name = TextEditingController();
+Future<ServerDef?> showAddServerDialog(BuildContext context,
+    {ServerDef? existing}) {
+  final host = TextEditingController(text: existing?.host);
+  final name = TextEditingController(text: existing?.name);
   return showDialog<ServerDef>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Add server'),
+      title: Text(existing == null ? 'Add server' : 'Edit server'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -105,7 +116,7 @@ Future<ServerDef?> showAddServerDialog(BuildContext context) {
                       ? host.text.trim()
                       : name.text.trim(),
                   host: host.text.trim())),
-          child: const Text('Add'),
+          child: Text(existing == null ? 'Add' : 'Save'),
         ),
       ],
     ),

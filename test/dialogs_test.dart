@@ -71,6 +71,35 @@ void main() {
     expect(result!.name, 'c.log');
   });
 
+  testWidgets('edit server prefills host + name', (t) async {
+    ServerDef? result;
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (ctx) => TextButton(
+            onPressed: () => showAddServerDialog(ctx,
+                    existing: ServerDef(
+                        name: 'web-one', host: 'prod-web-01'))
+                .then((r) => result = r),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    ));
+    await t.tap(find.text('open'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Edit server'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'prod-web-01'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'web-one'), findsOneWidget);
+
+    await t.enterText(find.byType(TextField).first, 'prod-web-02');
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(result!.host, 'prod-web-02');
+    expect(result!.name, 'web-one');
+  });
+
   testWidgets('edit mode prefills fields, path change keeps name', (t) async {
     LogFileDef? result;
     await _pumpDialog(

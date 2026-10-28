@@ -96,6 +96,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Apply edited fields in place — [updated] comes back from the edit
+  /// dialog without children, so only scalar fields are copied.
+  Future<void> updateEnvironment(
+      Environment env, Environment updated) async {
+    env.name = updated.name;
+    env.color = updated.color;
+    await _persist();
+    notifyListeners();
+  }
+
   Future<void> removeEnvironment(Environment env) async {
     environments.remove(env);
     await _persist();
@@ -104,6 +114,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> addServer(Environment env, ServerDef server) async {
     env.servers.add(server);
+    await _persist();
+    notifyListeners();
+  }
+
+  /// Same in-place semantics as [updateEnvironment] — logs stay attached.
+  Future<void> updateServer(ServerDef server, ServerDef updated) async {
+    server.name = updated.name;
+    server.host = updated.host;
     await _persist();
     notifyListeners();
   }

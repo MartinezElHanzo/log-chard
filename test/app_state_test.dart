@@ -93,6 +93,28 @@ void main() {
     expect(cfg.savedSettings['notesPanelVisible'], true);
   });
 
+  test('updateEnvironment/updateServer mutate in place, keep children',
+      () async {
+    final srv = ServerDef(name: 'w1', host: 'web-01', logs: [
+      LogFileDef(name: 'a', path: '/v/a.log'),
+    ]);
+    final env = Environment(name: 'prod', color: 'red', servers: [srv]);
+
+    await state.updateEnvironment(
+        env, Environment(name: 'Production', color: 'blue'));
+    expect(env.name, 'Production');
+    expect(env.color, 'blue');
+    expect(env.servers.single, same(srv),
+        reason: 'children survive rename');
+
+    await state.updateServer(
+        srv, ServerDef(name: 'web-one', host: 'web-01-new'));
+    expect(srv.name, 'web-one');
+    expect(srv.host, 'web-01-new');
+    expect(srv.logs.single.path, '/v/a.log');
+    expect(cfg.saveCalls, 2);
+  });
+
   test('updateLog replaces in place + persists', () async {
     final srv = ServerDef(name: 'w1', host: 'web-01', logs: [
       LogFileDef(name: 'a', path: '/v/a.log'),

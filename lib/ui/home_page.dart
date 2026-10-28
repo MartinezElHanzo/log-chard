@@ -251,10 +251,17 @@ class _EnvTile extends StatelessWidget {
           PopupMenuItem(value: 'add-server', child: Text('Add server')),
           PopupMenuItem(
               value: 'import', child: Text('Import hosts from ssh config')),
+          PopupMenuItem(value: 'edit', child: Text('Edit...')),
           PopupMenuItem(value: 'delete', child: Text('Delete environment')),
         ],
         onSelected: (v) async {
           switch (v) {
+            case 'edit':
+              final updated =
+                  await showAddEnvironmentDialog(context, existing: env);
+              if (updated != null) {
+                await state.updateEnvironment(env, updated);
+              }
             case 'add-server':
               final s = await showAddServerDialog(context);
               if (s != null && s.host.isNotEmpty) {
@@ -305,11 +312,18 @@ class _ServerTile extends StatelessWidget {
                 iconSize: 14,
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'add-log', child: Text('Add log file')),
+                  PopupMenuItem(value: 'edit', child: Text('Edit...')),
                   PopupMenuItem(
                       value: 'delete', child: Text('Remove server')),
                 ],
                 onSelected: (v) async {
                   switch (v) {
+                    case 'edit':
+                      final updated =
+                          await showAddServerDialog(context, existing: server);
+                      if (updated != null) {
+                        await state.updateServer(server, updated);
+                      }
                     case 'add-log':
                       final l = await showAddLogDialog(context);
                       if (l != null && l.path.isNotEmpty) {
