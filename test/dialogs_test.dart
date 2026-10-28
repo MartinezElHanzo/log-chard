@@ -7,14 +7,15 @@ import 'package:log_chard/ui/dialogs.dart';
 /// completes when the dialog is dismissed.
 Future<void> Function(WidgetTester) _pumpDialog(
         void Function(LogFileDef?) onResult,
-        {LogFileDef? existing}) =>
+        {LogFileDef? existing, List<String> knownPaths = const []}) =>
     (t) async {
       await t.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Builder(
             builder: (ctx) => TextButton(
-              onPressed: () =>
-                  showAddLogDialog(ctx, existing: existing).then(onResult),
+              onPressed: () => showAddLogDialog(ctx,
+                      existing: existing, knownPaths: knownPaths)
+                  .then(onResult),
               child: const Text('open'),
             ),
           ),
@@ -122,5 +123,28 @@ void main() {
     await t.pumpAndSettle();
     expect(result!.name, 'server');
     expect(result!.path, '/var/log/app/error.log');
+  });
+
+  testWidgets('path autocompletes from known paths', (t) async {
+    await _pumpDialog((r) {}, knownPaths: [
+      '/var/log/app/server.log',
+      '/var/log/app/error.log',
+      '/opt/db/pg.log',
+    ])(t);
+    final fields = find.byType(TextField);
+
+    await t.enterText(fields.first, '/var');
+    await t.pumpAndSettle();
+    expect(find.text('/var/log/app/server.log'), findsWidgets);
+    expect(find.text('/var/log/app/error.log'), findsWidgets);
+    expect(find.text('/opt/db/pg.log'), findsNothing,
+        reason: 'non-matching path filtered out');
+
+    // picking a suggestion fills path AND autofills name
+    await t.tap(find.text('/var/log/app/server.log').last);
+    await t.pumpAndSettle();
+    expect(find.widgetWithText(TextField, '/var/log/app/server.log'),
+        findsOneWidget);
+    expect(find.widgetWithText(TextField, 'server'), findsOneWidget);
   });
 }

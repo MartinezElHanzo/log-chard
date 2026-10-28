@@ -124,13 +124,22 @@ Future<ServerDef?> showAddServerDialog(BuildContext context,
 }
 
 Future<LogFileDef?> showAddLogDialog(BuildContext context,
-    {LogFileDef? existing}) {
+    {LogFileDef? existing, List<String> knownPaths = const []}) {
   final name = TextEditingController(text: existing?.name);
-  final path = TextEditingController(text: existing?.path);
+  late TextEditingController path;
   // Prefilled name counts as user-owned — don't autofill over it.
   var nameEdited = existing != null;
   var filling = false; // set while we write name.text programmatically
   const presets = ['server.log', 'error.log', 'access.log', 'app.log'];
+  // auto-name from the path basename until the user overrides it
+  void autoName(String pathText) {
+    if (nameEdited) return;
+    final base = pathText.trim().split('/').last;
+    filling = true;
+    name.text = base.replaceAll('.log', '');
+    filling = false;
+  }
+
   return showDialog<LogFileDef>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -157,20 +166,29 @@ Future<LogFileDef?> showAddLogDialog(BuildContext context,
                 .toList(),
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: path,
-            autofocus: true,
-            contextMenuBuilder: _fieldMenu,
-            decoration: const InputDecoration(
-                labelText: 'Remote path',
-                hintText: '/opt/app/logs/server.log'),
-            onChanged: (_) {
-              // auto-name from the path basename until the user overrides it
-              if (nameEdited) return;
-              final base = path.text.trim().split('/').last;
-              filling = true;
-              name.text = base.replaceAll('.log', '');
-              filling = false;
+          Autocomplete<String>(
+            initialValue: TextEditingValue(text: existing?.path ?? ''),
+            optionsBuilder: (v) {
+              final q = v.text.toLowerCase();
+              return knownPaths
+                  .toSet()
+                  .where((p) => q.isEmpty || p.toLowerCase().contains(q))
+                  .take(8);
+            },
+            onSelected: autoName,
+            fieldViewBuilder:
+                (ctx, controller, focusNode, onSubmitted) {
+              path = controller;
+              return TextField(
+                controller: controller,
+                focusNode: focusNode,
+                autofocus: true,
+                contextMenuBuilder: _fieldMenu,
+                decoration: const InputDecoration(
+                    labelText: 'Remote path',
+                    hintText: '/opt/app/logs/server.log'),
+                onChanged: (_) => autoName(controller.text),
+              );
             },
           ),
           const SizedBox(height: 8),

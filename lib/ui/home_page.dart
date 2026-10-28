@@ -325,7 +325,8 @@ class _ServerTile extends StatelessWidget {
                         await state.updateServer(server, updated);
                       }
                     case 'add-log':
-                      final l = await showAddLogDialog(context);
+                      final l = await showAddLogDialog(context,
+                          knownPaths: state.allLogPaths);
                       if (l != null && l.path.isNotEmpty) {
                         await state.addLog(server, l);
                       }
@@ -400,7 +401,8 @@ void _onLogMenu(BuildContext context, String? v, AppState state,
     case 'open':
       state.openLog(env, server, log);
     case 'edit':
-      final updated = await showAddLogDialog(context, existing: log);
+      final updated = await showAddLogDialog(context,
+          existing: log, knownPaths: state.allLogPaths);
       if (updated != null) await state.updateLog(server, log, updated);
     case 'remove':
       state.removeLog(server, log);

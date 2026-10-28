@@ -158,6 +158,12 @@ class AppState extends ChangeNotifier {
   bool hasHost(String alias) =>
       environments.any((e) => e.servers.any((s) => s.host == alias));
 
+  /// Every configured log path — feeds path autocompletion in dialogs.
+  List<String> get allLogPaths => [
+        for (final e in environments)
+          for (final s in e.servers) for (final l in s.logs) l.path
+      ];
+
   // --- sessions ---
 
   void openLog(Environment env, ServerDef server, LogFileDef log,
