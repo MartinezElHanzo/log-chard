@@ -1,8 +1,30 @@
 import 'dart:async';
 
 import 'package:log_chard/backend/terminal_backend.dart';
+import 'package:log_chard/config_store.dart';
 import 'package:log_chard/models.dart';
 import 'package:log_chard/session.dart';
+
+/// ConfigStore without path_provider — records saves in memory.
+class FakeConfigStore extends ConfigStore {
+  List<Environment> savedEnvs = [];
+  Map<String, dynamic> savedSettings = {};
+  var saveCalls = 0;
+
+  @override
+  Future<List<Environment>> load() async => [];
+
+  @override
+  Future<Map<String, dynamic>> loadSettings() async => {};
+
+  @override
+  Future<void> save(List<Environment> envs,
+      {Map<String, dynamic> settings = const {}}) async {
+    saveCalls++;
+    savedEnvs = envs;
+    savedSettings = settings;
+  }
+}
 
 /// Scripted TerminalBackend: tests push output + exit codes by hand.
 /// `exitCode` is the raw waitpid status word, matching PtyBackend.

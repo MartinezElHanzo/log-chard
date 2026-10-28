@@ -325,7 +325,8 @@ class _ServerTile extends StatelessWidget {
           for (final log in server.logs)
             InkWell(
               onTap: () => state.openLog(env, server, log),
-              onSecondaryTap: () => state.removeLog(server, log),
+              onSecondaryTapDown: (d) => _logMenu(
+                  context, d.globalPosition, state, env, server, log),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(22, 4, 8, 4),
                 child: Row(
@@ -336,6 +337,17 @@ class _ServerTile extends StatelessWidget {
                     Expanded(
                         child: Text(log.name,
                             style: const TextStyle(fontSize: 12.5))),
+                    PopupMenuButton<String>(
+                      iconSize: 12,
+                      padding: EdgeInsets.zero,
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'open', child: Text('Open')),
+                        PopupMenuItem(
+                            value: 'remove', child: Text('Remove log file')),
+                      ],
+                      onSelected: (v) =>
+                          _onLogMenu(v, state, env, server, log),
+                    ),
                   ],
                 ),
               ),
@@ -344,6 +356,34 @@ class _ServerTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Right-click context menu on a sidebar log entry — positioned at the
+/// pointer. Removal is an explicit menu choice, never a bare gesture.
+void _logMenu(BuildContext context, Offset at, AppState state,
+    Environment env, ServerDef server, LogFileDef log) async {
+  final overlay =
+      Overlay.of(context).context.findRenderObject() as RenderBox;
+  final v = await showMenu<String>(
+    context: context,
+    position: RelativeRect.fromRect(
+        at & const Size(1, 1), Offset.zero & overlay.size),
+    items: const [
+      PopupMenuItem(value: 'open', child: Text('Open')),
+      PopupMenuItem(value: 'remove', child: Text('Remove log file')),
+    ],
+  );
+  if (context.mounted) _onLogMenu(v, state, env, server, log);
+}
+
+void _onLogMenu(String? v, AppState state, Environment env,
+    ServerDef server, LogFileDef log) {
+  switch (v) {
+    case 'open':
+      state.openLog(env, server, log);
+    case 'remove':
+      state.removeLog(server, log);
   }
 }
 
