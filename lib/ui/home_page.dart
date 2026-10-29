@@ -239,14 +239,40 @@ class _EnvTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = envColors[env.color] ?? Colors.grey;
-    return ExpansionTile(
-      dense: true,
-      initiallyExpanded: true,
-      leading: Icon(Icons.circle, size: 10, color: color),
-      title: Text(env.name,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-      trailing: PopupMenuButton<String>(
-        iconSize: 16,
+    return Stack(
+      children: [
+        ExpansionTile(
+          dense: true,
+          initiallyExpanded: true,
+          tilePadding: const EdgeInsets.only(left: 10, right: 30),
+          leading: Icon(Icons.circle, size: 10, color: color),
+          title: Text(env.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600)),
+          childrenPadding: EdgeInsets.zero,
+          children: [
+            for (final server in env.servers)
+              _ServerTile(env: env, server: server, state: state),
+          ],
+        ),
+        Positioned(
+          right: 2,
+          top: 3,
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: _envMenu(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _envMenu(BuildContext context) => PopupMenuButton<String>(
+        iconSize: 14,
+        padding: EdgeInsets.zero,
         itemBuilder: (_) => const [
           PopupMenuItem(value: 'add-server', child: Text('Add server')),
           PopupMenuItem(
@@ -278,12 +304,7 @@ class _EnvTile extends StatelessWidget {
               await state.removeEnvironment(env);
           }
         },
-      ),
-      children: [
-        for (final server in env.servers) _ServerTile(env: env, server: server, state: state),
-      ],
-    );
-  }
+      );
 }
 
 class _ServerTile extends StatelessWidget {
@@ -306,11 +327,17 @@ class _ServerTile extends StatelessWidget {
               const Icon(Icons.dns_outlined, size: 14),
               const SizedBox(width: 6),
               Expanded(
-                  child:
-                      Text(server.name, style: const TextStyle(fontSize: 13))),
-              PopupMenuButton<String>(
-                iconSize: 14,
-                itemBuilder: (_) => const [
+                  child: Text(server.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13))),
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: PopupMenuButton<String>(
+                  iconSize: 14,
+                  padding: EdgeInsets.zero,
+                  itemBuilder: (_) => const [
                   PopupMenuItem(value: 'add-log', child: Text('Add log file')),
                   PopupMenuItem(value: 'edit', child: Text('Edit...')),
                   PopupMenuItem(
@@ -334,6 +361,7 @@ class _ServerTile extends StatelessWidget {
                       await state.removeServer(env, server);
                   }
                 },
+                ),
               ),
             ],
           ),
@@ -343,7 +371,7 @@ class _ServerTile extends StatelessWidget {
               onSecondaryTapDown: (d) => _logMenu(
                   context, d.globalPosition, state, env, server, log),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 4, 8, 4),
+                padding: const EdgeInsets.fromLTRB(22, 4, 2, 4),
                 child: Row(
                   children: [
                     const Icon(Icons.description_outlined, size: 13,
@@ -351,11 +379,16 @@ class _ServerTile extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                         child: Text(log.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 12.5))),
-                    PopupMenuButton<String>(
-                      iconSize: 12,
-                      padding: EdgeInsets.zero,
-                      itemBuilder: (_) => const [
+                    SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: PopupMenuButton<String>(
+                        iconSize: 12,
+                        padding: EdgeInsets.zero,
+                        itemBuilder: (_) => const [
                         PopupMenuItem(value: 'open', child: Text('Open')),
                         PopupMenuItem(
                             value: 'edit', child: Text('Edit...')),
@@ -364,6 +397,7 @@ class _ServerTile extends StatelessWidget {
                       ],
                       onSelected: (v) =>
                           _onLogMenu(context, v, state, env, server, log),
+                      ),
                     ),
                   ],
                 ),
