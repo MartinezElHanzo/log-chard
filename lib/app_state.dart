@@ -167,6 +167,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- drag & drop reorder (same level only) ---
+
+  Future<void> moveEnvironment(int from, int to) =>
+      _reorder(environments, from, to);
+
+  Future<void> moveServer(Environment env, int from, int to) =>
+      _reorder(env.servers, from, to);
+
+  Future<void> moveLog(ServerDef server, int from, int to) =>
+      _reorder(server.logs, from, to);
+
+  /// [to] is the target index after removal — ReorderableListView's
+  /// onReorderItem already adjusts for the removed item.
+  Future<void> _reorder<T>(List<T> list, int from, int to) async {
+    if (from == to ||
+        from < 0 ||
+        from >= list.length ||
+        to < 0 ||
+        to >= list.length) {
+      return;
+    }
+    list.insert(to, list.removeAt(from));
+    await _persist();
+    notifyListeners();
+  }
+
   /// Whether [alias] is already registered under any environment.
   bool hasHost(String alias) =>
       environments.any((e) => e.servers.any((s) => s.host == alias));

@@ -133,6 +133,48 @@ void main() {
     expect(cfg.saveCalls, 1);
   });
 
+  group('drag & drop reorder', () {
+    test('moveEnvironment uses post-removal target index', () async {
+      final a = Environment(name: 'a');
+      final b = Environment(name: 'b');
+      final c = Environment(name: 'c');
+      state.environments = [a, b, c];
+
+      // drag a below c: target index 2
+      await state.moveEnvironment(0, 2);
+      expect(state.environments, [b, c, a]);
+
+      // drag c above b: index 1 -> 0
+      await state.moveEnvironment(1, 0);
+      expect(state.environments, [c, b, a]);
+      expect(cfg.saveCalls, 2);
+
+      // no-ops: same index + out of bounds don't persist
+      await state.moveEnvironment(1, 1);
+      await state.moveEnvironment(9, 0);
+      await state.moveEnvironment(0, 9);
+      await state.moveEnvironment(0, -1);
+      expect(cfg.saveCalls, 2);
+      expect(state.environments, [c, b, a]);
+    });
+
+    test('moveServer/moveLog reorder within their parent', () async {
+      final l1 = LogFileDef(name: 'l1', path: '/1');
+      final l2 = LogFileDef(name: 'l2', path: '/2');
+      final s1 = ServerDef(name: 's1', host: 'h1');
+      final s2 = ServerDef(name: 's2', host: 'h2', logs: [l1, l2]);
+      final env = Environment(name: 'e', servers: [s1, s2]);
+      state.environments = [env];
+
+      await state.moveServer(env, 0, 1);
+      expect(env.servers, [s2, s1]);
+
+      await state.moveLog(s2, 1, 0);
+      expect(s2.logs, [l2, l1]);
+      expect(cfg.saveCalls, 2);
+    });
+  });
+
   test('note removal + clear persist', () async {
     final n1 = LogNote(
         timestamp: DateTime.now(), source: 'a/b · c', path: '/x', text: 't1');

@@ -83,10 +83,12 @@ class _Sidebar extends StatelessWidget {
                     ),
                   ),
                 )
-              : ListView(
+              : ReorderableListView(
+                  onReorderItem: state.moveEnvironment,
                   children: [
                     for (final env in state.environments)
-                      _EnvTile(env: env, state: state),
+                      _EnvTile(
+                          key: ValueKey(env), env: env, state: state),
                   ],
                 ),
         ),
@@ -231,7 +233,7 @@ class _NoteTile extends StatelessWidget {
 }
 
 class _EnvTile extends StatelessWidget {
-  const _EnvTile({required this.env, required this.state});
+  const _EnvTile({super.key, required this.env, required this.state});
 
   final Environment env;
   final AppState state;
@@ -253,8 +255,19 @@ class _EnvTile extends StatelessWidget {
                   fontSize: 13, fontWeight: FontWeight.w600)),
           childrenPadding: EdgeInsets.zero,
           children: [
-            for (final server in env.servers)
-              _ServerTile(env: env, server: server, state: state),
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              onReorderItem: (o, n) => state.moveServer(env, o, n),
+              children: [
+                for (final server in env.servers)
+                  _ServerTile(
+                      key: ValueKey(server),
+                      env: env,
+                      server: server,
+                      state: state),
+              ],
+            ),
           ],
         ),
         Positioned(
@@ -309,7 +322,10 @@ class _EnvTile extends StatelessWidget {
 
 class _ServerTile extends StatelessWidget {
   const _ServerTile(
-      {required this.env, required this.server, required this.state});
+      {super.key,
+      required this.env,
+      required this.server,
+      required this.state});
 
   final Environment env;
   final ServerDef server;
@@ -365,44 +381,54 @@ class _ServerTile extends StatelessWidget {
               ),
             ],
           ),
-          for (final log in server.logs)
-            InkWell(
-              onTap: () => state.openLog(env, server, log),
-              onSecondaryTapDown: (d) => _logMenu(
-                  context, d.globalPosition, state, env, server, log),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 4, 2, 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.description_outlined, size: 13,
-                        color: Colors.white54),
-                    const SizedBox(width: 6),
-                    Expanded(
-                        child: Text(log.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12.5))),
-                    SizedBox(
-                      width: 26,
-                      height: 26,
-                      child: PopupMenuButton<String>(
-                        iconSize: 12,
-                        padding: EdgeInsets.zero,
-                        itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'open', child: Text('Open')),
-                        PopupMenuItem(
-                            value: 'edit', child: Text('Edit...')),
-                        PopupMenuItem(
-                            value: 'remove', child: Text('Remove log file')),
+          ReorderableListView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            onReorderItem: (o, n) => state.moveLog(server, o, n),
+            children: [
+              for (final log in server.logs)
+                InkWell(
+                  key: ValueKey(log),
+                  onTap: () => state.openLog(env, server, log),
+                  onSecondaryTapDown: (d) => _logMenu(
+                      context, d.globalPosition, state, env, server, log),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 4, 2, 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.description_outlined, size: 13,
+                            color: Colors.white54),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: Text(log.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12.5))),
+                        SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: PopupMenuButton<String>(
+                            iconSize: 12,
+                            padding: EdgeInsets.zero,
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                  value: 'open', child: Text('Open')),
+                              PopupMenuItem(
+                                  value: 'edit', child: Text('Edit...')),
+                              PopupMenuItem(
+                                  value: 'remove',
+                                  child: Text('Remove log file')),
+                            ],
+                            onSelected: (v) => _onLogMenu(
+                                context, v, state, env, server, log),
+                          ),
+                        ),
                       ],
-                      onSelected: (v) =>
-                          _onLogMenu(context, v, state, env, server, log),
-                      ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+            ],
+          ),
           const SizedBox(height: 4),
         ],
       ),
