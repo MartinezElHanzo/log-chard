@@ -24,7 +24,14 @@ class AppState extends ChangeNotifier {
 
   List<Environment> environments = [];
   final List<LogSession> sessions = [];
-  int? activeSession;
+
+  /// Session index shown in each pane; length == pane count (1, 2 or 4).
+  /// Null entry = empty pane (picker shown). Replaces the old
+  /// activeSession/splitIndex pair.
+  List<int?> panes = [null];
+
+  /// Pane that receives newly opened logs and tab selections.
+  int focusedPane = 0;
 
   /// User preferences persisted under the yaml `settings:` key.
   Map<String, dynamic> settings = {};
@@ -32,8 +39,14 @@ class AppState extends ChangeNotifier {
   /// Captured log snippets ("take a note"); persisted to notes.yaml.
   final List<LogNote> notes = [];
 
-  /// Index of session shown in the right split pane; null = single view.
-  int? splitIndex;
+  /// Session index in the focused pane — kept for compatibility with
+  /// status bar / tests.
+  int? get activeSession => panes.isEmpty ? null : panes[focusedPane];
+
+  int get paneCount => panes.length;
+
+  /// Warn in tab UI once this many live ssh sessions are open.
+  static const tabWarnThreshold = 8;
 
   Future<void> load() async {
     environments = await _store.load();
@@ -171,7 +184,7 @@ class AppState extends ChangeNotifier {
     final existing = sessions.indexWhere(
         (s) => s.server.host == server.host && s.log.path == log.path);
     if (existing >= 0 && initialPattern == null) {
-      activeSession = existing;
+      panes[focusedPane] = existing;
       notifyListeners();
       return;
     }
@@ -182,43 +195,77 @@ class AppState extends ChangeNotifier {
         initialPattern: initialPattern)
       ..addListener(notifyListeners);
     sessions.add(session);
-    activeSession = sessions.length - 1;
+    panes[focusedPane] = sessions.length - 1;
     notifyListeners();
   }
 
   void selectSession(int i) {
-    activeSession = i;
+    panes[focusedPane] = i;
+    notifyListeners();
+  }
+
+  /// Which session a pane displays; null clears the pane.
+  void assignPane(int pane, int? sessionIndex) {
+    if (pane < 0 || pane >= panes.length) return;
+    panes[pane] = sessionIndex;
+    notifyListeners();
+  }
+
+  void focusPane(int pane) {
+    if (pane < 0 || pane >= panes.length) return;
+    focusedPane = pane;
+    notifyListeners();
+  }
+
+  /// Pane layout: 1 = single, 2 = side-by-side, 4 = 2x2 grid.
+  /// New slots start empty (picker shown); shrinking keeps leading slots.
+  void setLayout(int count) {
+    assert(count == 1 || count == 2 || count == 4);
+    if (count == panes.length) return;
+    if (count > panes.length) {
+      panes = [...panes, ...List<int?>.filled(count - panes.length, null)];
+    } else {
+      panes = panes.sublist(0, count);
+    }
+    if (focusedPane >= count) focusedPane = count - 1;
     notifyListeners();
   }
 
   void closeSession(int i) {
     sessions[i].close();
     sessions.removeAt(i);
-    if (activeSession != null) {
-      if (sessions.isEmpty) {
-        activeSession = null;
-      } else if (activeSession! >= sessions.length) {
-        activeSession = sessions.length - 1;
-      } else if (activeSession! > i) {
-        activeSession = activeSession! - 1;
-      }
-    }
-    if (splitIndex != null) {
-      if (splitIndex == i) {
-        splitIndex = null;
-      } else if (splitIndex! > i) {
-        splitIndex = splitIndex! - 1;
-      }
-      if (splitIndex != null && splitIndex! >= sessions.length) {
-        splitIndex = null;
+    for (var p = 0; p < panes.length; p++) {
+      final v = panes[p];
+      if (v == null) continue;
+      if (v == i) {
+        panes[p] = sessions.isEmpty ? null : 0;
+      } else if (v > i) {
+        panes[p] = v - 1;
       }
     }
     notifyListeners();
   }
 
-  /// Side-by-side: pick which session sits in the right pane.
-  void setSplit(int? i) {
-    splitIndex = i;
+  void closeOtherSessions(int keep) {
+    final kept = sessions[keep];
+    for (final s in sessions) {
+      if (s != kept) s.close();
+    }
+    sessions
+      ..clear()
+      ..add(kept);
+    for (var p = 0; p < panes.length; p++) {
+      if (panes[p] != null) panes[p] = 0;
+    }
+    notifyListeners();
+  }
+
+  void closeAllSessions() {
+    for (final s in sessions) {
+      s.close();
+    }
+    sessions.clear();
+    panes = List.filled(panes.length, null);
     notifyListeners();
   }
 }

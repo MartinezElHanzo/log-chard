@@ -414,6 +414,40 @@ class _SessionArea extends StatelessWidget {
 
   final AppState state;
 
+  Widget _sessionView(LogSession s) => LogTermView(
+      terminal: s.terminal,
+      onWrite: s.write,
+      onResize: s.resize,
+      initialFontSize: state.terminalFontSize,
+      onFontSizeChanged: state.setTerminalFontSize,
+      onTakeNote: (text) => state.takeNote(s, text));
+
+  Widget _pane(int p) {
+    final idx = state.panes[p];
+    final valid = idx != null && idx < state.sessions.length;
+    final multi = state.paneCount > 1;
+    return Expanded(
+      child: Container(
+        decoration: multi && p == state.focusedPane
+            ? BoxDecoration(
+                border: Border.all(color: Colors.white24))
+            : null,
+        child: Column(
+          children: [
+            if (multi) _PaneHeader(state: state, pane: p),
+            Expanded(
+              child: valid
+                  ? _sessionView(state.sessions[idx])
+                  : const Center(
+                      child: Text('Pick a tab for this pane',
+                          style: TextStyle(color: Colors.white38))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessions = state.sessions;
@@ -429,7 +463,9 @@ class _SessionArea extends StatelessWidget {
                   session: sessions[i],
                   active: i == state.activeSession,
                   onTap: () => state.selectSession(i),
-                  onClose: () => state.closeSession(i)),
+                  onClose: () => state.closeSession(i),
+                  onMenu: (pos) =>
+                      _tabMenu(context, pos, state, i)),
             ),
           ),
         Expanded(
@@ -440,54 +476,29 @@ class _SessionArea extends StatelessWidget {
                     ? const Center(
                         child: Text('Open a log from the explorer',
                             style: TextStyle(color: Colors.white38)))
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: IndexedStack(
-                        index: state.activeSession ?? 0,
-                        children: [
-                          for (final s in sessions)
-                            LogTermView(
-                                terminal: s.terminal,
-                                onWrite: s.write,
-                                onResize: s.resize,
-                                initialFontSize: state.terminalFontSize,
-                                onFontSizeChanged:
-                                    state.setTerminalFontSize,
-                                onTakeNote: (text) =>
-                                    state.takeNote(s, text)),
-                        ],
-                      ),
-                    ),
-                    if (state.splitIndex != null &&
-                        state.splitIndex! < sessions.length) ...[
-                      const VerticalDivider(width: 1),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            _SplitHeader(state: state),
+                    : switch (state.paneCount) {
+                        1 => _pane(0),
+                        2 => Row(children: [
+                            _pane(0),
+                            const VerticalDivider(width: 1),
+                            _pane(1),
+                          ]),
+                        _ => Column(children: [
                             Expanded(
-                                child: LogTermView(
-                                    terminal:
-                                        sessions[state.splitIndex!]
-                                            .terminal,
-                                    onWrite:
-                                        sessions[state.splitIndex!].write,
-                                    onResize:
-                                        sessions[state.splitIndex!].resize,
-                                    initialFontSize:
-                                        state.terminalFontSize,
-                                    onFontSizeChanged:
-                                        state.setTerminalFontSize,
-                                    onTakeNote: (text) => state.takeNote(
-                                        sessions[state.splitIndex!],
-                                        text))),
-                          ],
-                        ),
-                      ),
-                    ],
-                        ],
-                      ),
+                                child: Row(children: [
+                              _pane(0),
+                              const VerticalDivider(width: 1),
+                              _pane(1),
+                            ])),
+                            const Divider(height: 1),
+                            Expanded(
+                                child: Row(children: [
+                              _pane(2),
+                              const VerticalDivider(width: 1),
+                              _pane(3),
+                            ])),
+                          ]),
+                      },
               ),
               if (state.notesPanelVisible) ...[
                 const VerticalDivider(width: 1),
@@ -502,17 +513,114 @@ class _SessionArea extends StatelessWidget {
   }
 }
 
+/// Per-pane header in multi-pane layouts: session picker + focused-pane
+/// indicator. Single-pane layout has no header (the tab bar is enough).
+class _PaneHeader extends StatelessWidget {
+  const _PaneHeader({required this.state, required this.pane});
+
+  final AppState state;
+  final int pane;
+
+  @override
+  Widget build(BuildContext context) {
+    final focused = pane == state.focusedPane;
+    return GestureDetector(
+      onTap: () => state.focusPane(pane),
+      child: Container(
+        height: 30,
+        color: focused ? Colors.white10 : Colors.transparent,
+        child: Row(
+          children: [
+            const SizedBox(width: 8),
+            Expanded(
+              child: DropdownButton<int>(
+                isDense: true,
+                value: state.panes[pane],
+                hint: Text('pane ${pane + 1}',
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.white38)),
+                underline: const SizedBox(),
+                items: [
+                  for (var i = 0; i < state.sessions.length; i++)
+                    DropdownMenuItem(
+                        value: i,
+                        child: Text(state.sessions[i].title,
+                            style: const TextStyle(fontSize: 12))),
+                ],
+                onChanged: (i) => state.assignPane(pane, i),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Right-click menu on a session tab.
+void _tabMenu(BuildContext context, Offset at, AppState state, int i) async {
+  final overlay =
+      Overlay.of(context).context.findRenderObject() as RenderBox;
+  final n = state.sessions.length;
+  final v = await showMenu<String>(
+    context: context,
+    position: RelativeRect.fromRect(
+        at & const Size(1, 1), Offset.zero & overlay.size),
+    items: [
+      if (n >= AppState.tabWarnThreshold)
+        PopupMenuItem<String>(
+            enabled: false,
+            child: Text('⚠ $n live ssh sessions',
+                style: const TextStyle(color: Colors.amber, fontSize: 12))),
+      const PopupMenuItem(value: 'close', child: Text('Close')),
+      const PopupMenuItem(
+          value: 'close-others', child: Text('Close other tabs')),
+      const PopupMenuItem(value: 'close-all', child: Text('Close all tabs')),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+          value: 'split-2', child: Text('Split right with this tab')),
+      const PopupMenuItem(value: 'split-4', child: Text('2x2 grid')),
+      const PopupMenuItem(value: 'single', child: Text('Single view')),
+      if (state.paneCount > 1) ...[
+        const PopupMenuDivider(),
+        for (var p = 0; p < state.paneCount; p++)
+          PopupMenuItem(
+              value: 'pane-$p', child: Text('Show in pane ${p + 1}')),
+      ],
+    ],
+  );
+  switch (v) {
+    case 'close':
+      state.closeSession(i);
+    case 'close-others':
+      state.closeOtherSessions(i);
+    case 'close-all':
+      state.closeAllSessions();
+    case 'split-2':
+      state.setLayout(2);
+      state.assignPane(1, i);
+    case 'split-4':
+      state.setLayout(4);
+    case 'single':
+      state.setLayout(1);
+    case final s? when s.startsWith('pane-'):
+      state.assignPane(int.parse(s.substring(5)), i);
+  }
+}
+
 class _SessionTab extends StatelessWidget {
   const _SessionTab(
       {required this.session,
       required this.active,
       required this.onTap,
-      required this.onClose});
+      required this.onClose,
+      required this.onMenu});
 
   final LogSession session;
   final bool active;
   final VoidCallback onTap;
   final VoidCallback onClose;
+  final ValueChanged<Offset> onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -525,6 +633,7 @@ class _SessionTab extends StatelessWidget {
     };
     return InkWell(
       onTap: onTap,
+      onSecondaryTapDown: (d) => onMenu(d.globalPosition),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
@@ -545,45 +654,6 @@ class _SessionTab extends StatelessWidget {
                     const Icon(Icons.close, size: 14, color: Colors.white38)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SplitHeader extends StatelessWidget {
-  const _SplitHeader({required this.state});
-
-  final AppState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 30,
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButton<int>(
-              isDense: true,
-              value: state.splitIndex,
-              underline: const SizedBox(),
-              items: [
-                for (var i = 0; i < state.sessions.length; i++)
-                  DropdownMenuItem(
-                      value: i,
-                      child: Text(state.sessions[i].title,
-                          style: const TextStyle(fontSize: 12))),
-              ],
-              onChanged: (i) => state.setSplit(i),
-            ),
-          ),
-          IconButton(
-            iconSize: 16,
-            icon: const Icon(Icons.close),
-            tooltip: 'Close split',
-            onPressed: () => state.setSplit(null),
-          ),
-        ],
       ),
     );
   }
@@ -639,10 +709,15 @@ class _StatusBar extends StatelessWidget {
             _BarButton(
               icon: Icons.vertical_split,
               tooltip: 'Split pane',
-              onPressed: () => state.setSplit(
-                  state.splitIndex == null
-                      ? (state.activeSession! + 1) % state.sessions.length
-                      : null),
+              onPressed: () {
+                if (state.paneCount > 1) {
+                  state.setLayout(1);
+                } else {
+                  state.setLayout(2);
+                  state.assignPane(1,
+                      (state.activeSession! + 1) % state.sessions.length);
+                }
+              },
             ),
           ],
           _BarButton(

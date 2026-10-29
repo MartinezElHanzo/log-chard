@@ -194,32 +194,65 @@ void main() {
       expect(s.activeSession, 1);
     });
 
-    test('closeSession shifts active + split indices', () {
+    test('closeSession remaps every pane', () {
       s.openLog(rig.environment, rig.server, rig.log);
       s.openLog(rig.environment, rig.server,
           LogFileDef(name: 'err', path: '/var/log/err.log'));
       s.openLog(rig.environment, rig.server,
           LogFileDef(name: 'acc', path: '/var/log/acc.log'));
-      s.selectSession(2);
-      s.setSplit(1);
+      s.setLayout(4);
+      s.assignPane(0, 0);
+      s.assignPane(1, 1);
+      s.assignPane(2, 2);
+      s.assignPane(3, 1);
+      s.focusPane(2);
 
       s.closeSession(0);
-      expect(s.activeSession, 1, reason: 'active index shifts left');
-      expect(s.splitIndex, 0, reason: 'split index shifts left');
+      expect(s.panes[0], 0, reason: 'closed session -> first remaining');
+      expect(s.panes[1], 0, reason: 'index shifts left');
+      expect(s.panes[2], 1, reason: 'index shifts left');
+      expect(s.panes[3], 0);
 
-      s.closeSession(0); // closes the old middle session
-      expect(s.sessions.length, 1);
-      expect(s.activeSession, 0);
-      expect(s.splitIndex, isNull,
-          reason: 'split pointing at closed session clears');
+      s.closeSession(0);
+      expect(s.panes, [0, 0, 0, 0]);
+
+      s.closeSession(0);
+      expect(s.panes, [null, null, null, null]);
     });
 
-    test('closing the only session clears active + split', () {
+    test('setLayout grows with null panes, shrinks keeping leading', () {
       s.openLog(rig.environment, rig.server, rig.log);
-      s.setSplit(0);
-      s.closeSession(0);
+      s.setLayout(4);
+      expect(s.paneCount, 4);
+      expect(s.panes[0], 0);
+      expect(s.panes.sublist(1), [null, null, null]);
+
+      s.focusPane(3);
+      s.setLayout(2);
+      expect(s.panes, [0, null]);
+      expect(s.focusedPane, 1, reason: 'focus clamps to last pane');
+    });
+
+    test('closeOtherSessions keeps one, points all panes at it', () {
+      s.openLog(rig.environment, rig.server, rig.log);
+      s.openLog(rig.environment, rig.server,
+          LogFileDef(name: 'err', path: '/var/log/err.log'));
+      s.setLayout(2);
+      s.assignPane(0, 0);
+      s.assignPane(1, 1);
+
+      s.closeOtherSessions(1);
+      expect(s.sessions.single.log.name, 'err');
+      expect(s.panes, [0, 0]);
+    });
+
+    test('closeAllSessions clears everything', () {
+      s.openLog(rig.environment, rig.server, rig.log);
+      s.setLayout(4);
+      s.closeAllSessions();
+      expect(s.sessions, isEmpty);
+      expect(s.panes, [null, null, null, null]);
       expect(s.activeSession, isNull);
-      expect(s.splitIndex, isNull);
     });
 
     test('takeNote captures session source + persists', () async {
