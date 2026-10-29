@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const kAppVersion = '0.3.0';
+const kAppVersion = '0.4.0';
 const kRepoUrl = 'https://github.com/MartinezElHanzo/log-chard';
 
 /// The ⋮ app menu in the sidebar header — shortcuts reference, repo
