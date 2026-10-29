@@ -84,11 +84,15 @@ class _Sidebar extends StatelessWidget {
                   ),
                 )
               : ReorderableListView(
+                  buildDefaultDragHandles: false,
                   onReorderItem: state.moveEnvironment,
                   children: [
-                    for (final env in state.environments)
+                    for (final (i, env) in state.environments.indexed)
                       _EnvTile(
-                          key: ValueKey(env), env: env, state: state),
+                          key: ValueKey(env),
+                          env: env,
+                          state: state,
+                          dragIndex: i),
                   ],
                 ),
         ),
@@ -233,10 +237,17 @@ class _NoteTile extends StatelessWidget {
 }
 
 class _EnvTile extends StatelessWidget {
-  const _EnvTile({super.key, required this.env, required this.state});
+  const _EnvTile(
+      {super.key,
+      required this.env,
+      required this.state,
+      required this.dragIndex});
 
   final Environment env;
   final AppState state;
+
+  /// Position in the env list — feeds the explicit drag handle.
+  final int dragIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +258,14 @@ class _EnvTile extends StatelessWidget {
           dense: true,
           initiallyExpanded: true,
           tilePadding: const EdgeInsets.only(left: 10, right: 30),
-          leading: Icon(Icons.circle, size: 10, color: color),
+          leading: SizedBox(
+            width: 26,
+            child: Row(children: [
+              _DragHandle(index: dragIndex),
+              const SizedBox(width: 4),
+              Icon(Icons.circle, size: 10, color: color),
+            ]),
+          ),
           title: Text(env.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -258,14 +276,16 @@ class _EnvTile extends StatelessWidget {
             ReorderableListView(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
               onReorderItem: (o, n) => state.moveServer(env, o, n),
               children: [
-                for (final server in env.servers)
+                for (final (i, server) in env.servers.indexed)
                   _ServerTile(
                       key: ValueKey(server),
                       env: env,
                       server: server,
-                      state: state),
+                      state: state,
+                      dragIndex: i),
               ],
             ),
           ],
@@ -325,11 +345,15 @@ class _ServerTile extends StatelessWidget {
       {super.key,
       required this.env,
       required this.server,
-      required this.state});
+      required this.state,
+      required this.dragIndex});
 
   final Environment env;
   final ServerDef server;
   final AppState state;
+
+  /// Position in the parent env — feeds the explicit drag handle.
+  final int dragIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -340,6 +364,8 @@ class _ServerTile extends StatelessWidget {
         children: [
           Row(
             children: [
+              _DragHandle(index: dragIndex),
+              const SizedBox(width: 2),
               const Icon(Icons.dns_outlined, size: 14),
               const SizedBox(width: 6),
               Expanded(
@@ -384,9 +410,10 @@ class _ServerTile extends StatelessWidget {
           ReorderableListView(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
             onReorderItem: (o, n) => state.moveLog(server, o, n),
             children: [
-              for (final log in server.logs)
+              for (final (i, log) in server.logs.indexed)
                 InkWell(
                   key: ValueKey(log),
                   onTap: () => state.openLog(env, server, log),
@@ -396,6 +423,8 @@ class _ServerTile extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(22, 4, 2, 4),
                     child: Row(
                       children: [
+                        _DragHandle(index: i),
+                        const SizedBox(width: 2),
                         const Icon(Icons.description_outlined, size: 13,
                             color: Colors.white54),
                         const SizedBox(width: 6),
@@ -431,6 +460,26 @@ class _ServerTile extends StatelessWidget {
           ),
           const SizedBox(height: 4),
         ],
+      ),
+    );
+  }
+}
+
+/// Explicit drag handle — the default ReorderableListView handles
+/// render an extra icon after each row on this Flutter version, which
+/// collides with the kebab menus. Small grab-cursor icon instead.
+class _DragHandle extends StatelessWidget {
+  const _DragHandle({required this.index});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableDragStartListener(
+      index: index,
+      child: const MouseRegion(
+        cursor: SystemMouseCursors.grab,
+        child: Icon(Icons.drag_indicator, size: 12, color: Colors.white24),
       ),
     );
   }
