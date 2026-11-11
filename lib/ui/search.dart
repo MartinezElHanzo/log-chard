@@ -47,28 +47,43 @@ class _SearchDialog extends StatefulWidget {
 class _SearchDialogState extends State<_SearchDialog> {
   final _pattern = TextEditingController();
   final List<_Hit> _hits = [];
+
+  /// Every configured log, flattened — indices into this list are what
+  /// [_checked] stores.
+  late final List<({Environment env, ServerDef server, LogFileDef log})>
+      _all;
+  late final Set<int> _checked;
   var _done = 0;
   var _total = 0;
   bool _running = false;
+  bool _pickerOpen = false;
 
-  /// Logs inside the chosen scope — the whole tree when unscoped.
-  Iterable<({Environment env, ServerDef server, LogFileDef log})>
-      _scopedLogs() sync* {
-    for (final e in widget.state.environments) {
-      if (widget.env != null && e != widget.env) continue;
-      for (final s in e.servers) {
-        if (widget.server != null && s != widget.server) continue;
-        for (final l in s.logs) {
-          yield (env: e, server: s, log: l);
-        }
-      }
-    }
+  @override
+  void initState() {
+    super.initState();
+    _all = [
+      for (final e in widget.state.environments)
+        for (final s in e.servers)
+          for (final l in s.logs) (env: e, server: s, log: l),
+    ];
+    // kebab scope = preselection; nothing scoped = all checked
+    _checked = {
+      for (var i = 0; i < _all.length; i++)
+        if ((widget.env == null || _all[i].env == widget.env) &&
+            (widget.server == null || _all[i].server == widget.server))
+          i,
+    };
   }
+
+  void _setAll(bool v) => setState(() {
+        _checked.clear();
+        if (v) _checked.addAll(List.generate(_all.length, (i) => i));
+      });
 
   Future<void> _run() async {
     final pattern = _pattern.text.trim();
-    if (pattern.isEmpty) return;
-    final scoped = _scopedLogs().toList();
+    if (pattern.isEmpty || _checked.isEmpty) return;
+    final scoped = [for (final i in _checked) _all[i]];
     setState(() {
       _hits.clear();
       _done = 0;
@@ -118,6 +133,82 @@ class _SearchDialogState extends State<_SearchDialog> {
     }
   }
 
+  /// Collapsible checkbox list over every configured log. Kebab scope
+  /// preselects; user can widen/narrow freely before searching.
+  Widget _picker() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.white12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _pickerOpen = !_pickerOpen),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(children: [
+                Icon(
+                    _pickerOpen
+                        ? Icons.expand_more
+                        : Icons.chevron_right,
+                    size: 16),
+                Text(
+                    '${_checked.length}/${_all.length} logs',
+                    style: const TextStyle(fontSize: 12)),
+                const Spacer(),
+                TextButton(
+                    onPressed: () => _setAll(true),
+                    child: const Text('All', style: TextStyle(fontSize: 11))),
+                TextButton(
+                    onPressed: () => _setAll(false),
+                    child: const Text('None',
+                        style: TextStyle(fontSize: 11))),
+              ]),
+            ),
+          ),
+          if (_pickerOpen)
+            SizedBox(
+              height: 140,
+              child: ListView.builder(
+                itemCount: _all.length,
+                itemBuilder: (_, i) {
+                  final j = _all[i];
+                  return InkWell(
+                    onTap: () => setState(() => _checked.contains(i)
+                        ? _checked.remove(i)
+                        : _checked.add(i)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Row(children: [
+                        SizedBox(
+                          width: 20,
+                          height: 24,
+                          child: Checkbox(
+                            value: _checked.contains(i),
+                            onChanged: (v) => setState(() => v!
+                                ? _checked.add(i)
+                                : _checked.remove(i)),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                              '${j.env.name} / ${j.server.name} / ${j.log.name}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11)),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -144,6 +235,8 @@ class _SearchDialogState extends State<_SearchDialog> {
               ),
               onSubmitted: (_) => _run(),
             ),
+            const SizedBox(height: 8),
+            _picker(),
             const SizedBox(height: 8),
             Row(
               children: [
