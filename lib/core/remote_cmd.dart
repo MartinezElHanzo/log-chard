@@ -5,16 +5,23 @@ import '../models.dart';
 ///
 /// Composition (tmux on):
 ///   command -v tmux >/dev/null 2>&1 \
-///     && tmux new-session -A -s `logch-<log>` "less '`<path>`'" \
-///     || less '`<path>`'
+///     && tmux new-session -A -s `logch-<log>` "less '`<path>`' +G" \
+///     || less '`<path>`' +G
+/// `+G` opens at end of file (log tail); `+/pattern` or `+F` replace it.
 ///
 /// The tmux session name carries the follow flag (logch- vs logchF-) so
 /// toggling live mode doesn't reattach to a stale plain `less` session.
 String buildLogCommand(ServerDef server, LogFileDef log,
     {bool? follow, String? initialPattern}) {
   final f = follow ?? log.follow;
-  final patArg = initialPattern == null ? '' : ' +/${sqPat(initialPattern)}';
-  final less = 'less ${f ? '+F ' : ''}${sq(log.path)}$patArg';
+  // Logs matter at the end: +G opens on the last line (seekable file ->
+  // remote less scans back, no full read). +/pattern already positions.
+  final pos = initialPattern != null
+      ? ' +/${sqPat(initialPattern)}'
+      : f
+          ? ''
+          : ' +G';
+  final less = 'less ${f ? '+F ' : ''}${sq(log.path)}$pos';
   if (!server.useTmux) return less;
   final session = 'logch${f ? 'F' : ''}-${_sanitize(log.name)}';
   return 'command -v tmux >/dev/null 2>&1 && '

@@ -29,7 +29,14 @@ void main() {
   test('buildLogCommand: plain less, tmux wrap, follow variant', () {
     final s = ServerDef(name: 'a', host: 'h', useTmux: false);
     final l = LogFileDef(name: 'Server', path: '/var/log/server.log');
-    expect(buildLogCommand(s, l), "less '/var/log/server.log'");
+    // +G opens at end of file — logs matter at the tail
+    expect(buildLogCommand(s, l), "less '/var/log/server.log' +G");
+
+    // explicit follow (live) and pattern open position differently
+    expect(buildLogCommand(s, l, follow: true),
+        "less +F '/var/log/server.log'");
+    expect(buildLogCommand(s, l, initialPattern: 'err'),
+        "less '/var/log/server.log' +/err");
 
     final tm = ServerDef(name: 'a', host: 'h');
     expect(
