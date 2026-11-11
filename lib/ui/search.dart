@@ -10,10 +10,13 @@ import '../models.dart';
 /// Cross-server grep: pattern is run as a bounded remote grep against every
 /// configured log file, in parallel (capped), results grouped by server/log.
 /// Tapping a hit opens that log with `less +/pattern` — lands on first match.
-Future<void> showSearchDialog(BuildContext context, AppState state) {
+/// Pass [env] / [server] to scope the search to a subtree.
+Future<void> showSearchDialog(BuildContext context, AppState state,
+    {Environment? env, ServerDef? server}) {
   return showDialog(
     context: context,
-    builder: (ctx) => _SearchDialog(state: state, dialogContext: ctx),
+    builder: (ctx) => _SearchDialog(
+        state: state, env: env, server: server, dialogContext: ctx),
   );
 }
 
@@ -26,9 +29,15 @@ class _Hit {
 }
 
 class _SearchDialog extends StatefulWidget {
-  const _SearchDialog({required this.state, required this.dialogContext});
+  const _SearchDialog(
+      {required this.state,
+      this.env,
+      this.server,
+      required this.dialogContext});
 
   final AppState state;
+  final Environment? env;
+  final ServerDef? server;
   final BuildContext dialogContext;
 
   @override
@@ -42,27 +51,37 @@ class _SearchDialogState extends State<_SearchDialog> {
   var _total = 0;
   bool _running = false;
 
+  /// Logs inside the chosen scope — the whole tree when unscoped.
+  Iterable<({Environment env, ServerDef server, LogFileDef log})>
+      _scopedLogs() sync* {
+    for (final e in widget.state.environments) {
+      if (widget.env != null && e != widget.env) continue;
+      for (final s in e.servers) {
+        if (widget.server != null && s != widget.server) continue;
+        for (final l in s.logs) {
+          yield (env: e, server: s, log: l);
+        }
+      }
+    }
+  }
+
   Future<void> _run() async {
     final pattern = _pattern.text.trim();
     if (pattern.isEmpty) return;
+    final scoped = _scopedLogs().toList();
     setState(() {
       _hits.clear();
       _done = 0;
       _running = true;
-      _total = widget.state.environments.fold(
-          0, (n, e) => n + e.servers.fold(0, (m, s) => m + s.logs.length));
+      _total = scoped.length;
     });
 
     // bounded parallelism
     const concurrency = 6;
-    final jobs = <Future<void> Function()>[];
-    for (final env in widget.state.environments) {
-      for (final server in env.servers) {
-        for (final log in server.logs) {
-          jobs.add(() => _grep(env, server, log, pattern));
-        }
-      }
-    }
+    final jobs = <Future<void> Function()>[
+      for (final j in scoped)
+        () => _grep(j.env, j.server, j.log, pattern),
+    ];
     final running = <Future<void>>{};
     for (final job in jobs) {
       if (running.length >= concurrency) await Future.any(running);
@@ -102,7 +121,11 @@ class _SearchDialogState extends State<_SearchDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Search all logs'),
+      title: Text(widget.server != null
+          ? 'Search ${widget.server!.name}'
+          : widget.env != null
+              ? 'Search ${widget.env!.name}'
+              : 'Search all logs'),
       content: SizedBox(
         width: 640,
         height: 440,

@@ -307,6 +307,7 @@ class _EnvTile extends StatelessWidget {
         iconSize: 14,
         padding: EdgeInsets.zero,
         itemBuilder: (_) => const [
+          PopupMenuItem(value: 'search', child: Text('Search logs')),
           PopupMenuItem(value: 'add-server', child: Text('Add server')),
           PopupMenuItem(
               value: 'import', child: Text('Import hosts from ssh config')),
@@ -315,6 +316,8 @@ class _EnvTile extends StatelessWidget {
         ],
         onSelected: (v) async {
           switch (v) {
+            case 'search':
+              showSearchDialog(context, state, env: env);
             case 'edit':
               final updated =
                   await showAddEnvironmentDialog(context, existing: env);
@@ -380,13 +383,17 @@ class _ServerTile extends StatelessWidget {
                   iconSize: 14,
                   padding: EdgeInsets.zero,
                   itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'add-log', child: Text('Add log file')),
+                  PopupMenuItem(value: 'search', child: Text('Search logs')),
+                  PopupMenuItem(
+                      value: 'add-log', child: Text('Add log file')),
                   PopupMenuItem(value: 'edit', child: Text('Edit...')),
                   PopupMenuItem(
                       value: 'delete', child: Text('Remove server')),
                 ],
                 onSelected: (v) async {
                   switch (v) {
+                    case 'search':
+                      showSearchDialog(context, state, server: server);
                     case 'edit':
                       final updated =
                           await showAddServerDialog(context, existing: server);
