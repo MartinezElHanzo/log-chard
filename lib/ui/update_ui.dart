@@ -45,7 +45,38 @@ class UpdateChip extends StatelessWidget {
     // hand the actions to the app menu (see checkForUpdatesInteractive)
     checkForUpdatesNow = checkForUpdate;
     openUpdateDialog = openDialog;
+
+    // user-triggered check reached a terminal state -> give feedback
+    if (manualCheckPending &&
+        status != UpdatStatus.checking &&
+        status != UpdatStatus.idle) {
+      manualCheckPending = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        switch (status) {
+          case UpdatStatus.available ||
+                UpdatStatus.availableWithChangelog ||
+                UpdatStatus.readyToInstall:
+            openDialog();
+          case UpdatStatus.upToDate:
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content:
+                    Text('LogChard v$appVersion is up to date.')));
+          case UpdatStatus.error:
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content:
+                    Text('Update check failed — try again later.')));
+          default:
+        }
+      });
+    }
+
     return switch (status) {
+      UpdatStatus.checking when manualCheckPending => const Chip(
+          avatar: SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          label: Text('Checking for updates…')),
       UpdatStatus.available || UpdatStatus.availableWithChangelog =>
         ActionChip(
           avatar: const Icon(Icons.system_update_alt, size: 16),

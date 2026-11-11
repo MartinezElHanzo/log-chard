@@ -12,8 +12,12 @@ void Function()? checkForUpdatesNow;
 void Function()? openUpdateDialog;
 UpdatStatus? lastUpdateStatus;
 
+/// Set by a user-triggered check — the chip turns the terminal state
+/// into feedback (dialog/snackbar) instead of staying silent.
+bool manualCheckPending = false;
+
 /// Menu action: if an update is already known, show its dialog —
-/// otherwise re-run the check (the chip appears when one is found).
+/// otherwise re-run the check and report the outcome.
 void checkForUpdatesInteractive() {
   if (lastUpdateStatus == UpdatStatus.available ||
       lastUpdateStatus == UpdatStatus.availableWithChangelog ||
@@ -21,6 +25,7 @@ void checkForUpdatesInteractive() {
     openUpdateDialog?.call();
     return;
   }
+  manualCheckPending = true;
   checkForUpdatesNow?.call();
 }
 
