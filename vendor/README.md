@@ -13,6 +13,8 @@ Local patches:
 - fixed `libutil.so.1` resolution on Linux (explicit library name lookup)
 - fixed Windows pipe-name collision when multiple PTYs spawn concurrently
 - removed a unix-specific `-l` (login shell) hack that leaked into argv
+- widened `ffi` constraint to `>=1.0.0 <3.0.0` — upstream `^1.0.0` blocked
+  `path_provider >=2.1` (needs ffi ^2.0.0) and thereby `updat ^1.4.0`
 
 ## vendor/xterm
 

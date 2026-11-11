@@ -31,10 +31,12 @@ jobs:
           dart compile exe bin/logchard.dart -o build/linux/x64/release/bundle/logchard
           dart compile exe bin/mcp_server.dart -o build/linux/x64/release/bundle/logchard-mcp
       - name: Package
-        run: tar czf log-chard-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+        run: |
+          tar czf log-chard-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+          sha256sum log-chard-linux-x64.tar.gz > log-chard-linux-x64.tar.gz.sha256
       - uses: softprops/action-gh-release@v2
         with:
-          files: log-chard-linux-x64.tar.gz
+          files: log-chard-linux-x64.tar.gz*
           generate_release_notes: true
 
   windows:
@@ -51,8 +53,10 @@ jobs:
           dart compile exe bin/logchard.dart -o build\windows\x64\runner\Release\logchard.exe
           dart compile exe bin/mcp_server.dart -o build\windows\x64\runner\Release\logchard-mcp.exe
       - name: Package
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath log-chard-windows-x64.zip
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath log-chard-windows-x64.zip
+          (Get-FileHash log-chard-windows-x64.zip -Algorithm SHA256).Hash.ToLower() | Out-File log-chard-windows-x64.zip.sha256 -Encoding ascii -NoNewline
       - uses: softprops/action-gh-release@v2
         with:
-          files: log-chard-windows-x64.zip
+          files: log-chard-windows-x64.zip*
           generate_release_notes: true

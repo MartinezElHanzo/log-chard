@@ -38,9 +38,13 @@ dependencies:
     path: vendor/xterm
   pty:
     path: vendor/pty
-  path_provider: 2.0.15
+  path_provider: 2.1.5
   yaml: 3.1.0
   url_launcher: ^6.3.3
+  updat: 1.4.0
+  http: ^1.6.0
+  crypto: ^3.0.8
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:

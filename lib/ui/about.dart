@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../updater.dart';
+
 const kAppVersion = '0.4.0';
 const kRepoUrl = 'https://github.com/MartinezElHanzo/log-chard';
 
@@ -17,6 +19,13 @@ class AppMenuButton extends StatelessWidget {
       padding: EdgeInsets.zero,
       onSelected: (v) => _onSelect(context, v),
       itemBuilder: (ctx) => const [
+        PopupMenuItem(
+            value: 'update',
+            child: ListTile(
+                dense: true,
+                leading: Icon(Icons.system_update_alt, size: 18),
+                title: Text('Check for updates'),
+                contentPadding: EdgeInsets.zero)),
         PopupMenuItem(
             value: 'shortcuts',
             child: ListTile(
@@ -51,6 +60,8 @@ class AppMenuButton extends StatelessWidget {
 
   void _onSelect(BuildContext context, String v) {
     switch (v) {
+      case 'update':
+        checkForUpdatesInteractive();
       case 'shortcuts':
         showDialog<void>(
             context: context, builder: (_) => const _ShortcutsDialog());
