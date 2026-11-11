@@ -3,7 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../updater.dart';
 
-const kAppVersion = '0.5.0';
+const kAppVersion = '0.6.0';
 const kRepoUrl = 'https://github.com/MartinezElHanzo/log-chard';
 
 /// The ⋮ app menu in the sidebar header — shortcuts reference, repo
