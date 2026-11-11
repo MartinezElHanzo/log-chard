@@ -101,6 +101,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get sidebarCollapsed => settings['sidebarCollapsed'] == true;
+
+  Future<void> setSidebarCollapsed(bool collapsed) async {
+    settings['sidebarCollapsed'] = collapsed;
+    await _persist();
+    notifyListeners();
+  }
+
   // --- tree mutations (each persists) ---
 
   Future<void> addEnvironment(Environment env) async {

@@ -14,6 +14,7 @@ class AppMenuButton extends StatelessWidget {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, size: 18),
       tooltip: 'Menu',
+      padding: EdgeInsets.zero,
       onSelected: (v) => _onSelect(context, v),
       itemBuilder: (ctx) => const [
         PopupMenuItem(

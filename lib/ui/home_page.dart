@@ -22,7 +22,11 @@ class HomePage extends StatelessWidget {
       builder: (context, _) => Scaffold(
         body: Row(
           children: [
-            SizedBox(width: 280, child: _Sidebar(state: state)),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: state.sidebarCollapsed ? 52 : 280,
+              child: _Sidebar(state: state),
+            ),
             const VerticalDivider(width: 1),
             Expanded(child: _SessionArea(state: state)),
           ],
@@ -39,6 +43,7 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (state.sidebarCollapsed) return _CompactRail(state: state);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -52,22 +57,18 @@ class _Sidebar extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.2)),
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.search, size: 18),
-                tooltip: 'Search all logs',
-                onPressed: () => showSearchDialog(context, state),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add, size: 18),
-                tooltip: 'New environment',
-                onPressed: () async {
-                  final env = await showAddEnvironmentDialog(context);
-                  if (env != null && env.name.isNotEmpty) {
-                    await state.addEnvironment(env);
-                  }
-                },
-              ),
-              const AppMenuButton(),
+              _HeaderIcon(Icons.search, 'Search all logs',
+                  () => showSearchDialog(context, state)),
+              _HeaderIcon(Icons.add, 'New environment', () async {
+                final env = await showAddEnvironmentDialog(context);
+                if (env != null && env.name.isNotEmpty) {
+                  await state.addEnvironment(env);
+                }
+              }),
+              _HeaderIcon(Icons.chevron_left, 'Collapse sidebar',
+                  () => state.setSidebarCollapsed(true)),
+              const SizedBox(
+                  width: 32, height: 32, child: AppMenuButton()),
             ],
           ),
         ),
@@ -96,6 +97,115 @@ class _Sidebar extends StatelessWidget {
                   ],
                 ),
         ),
+      ],
+    );
+  }
+}
+
+/// Compact 32px header button — full-size IconButtons overflowed the
+/// sidebar header once four actions shared the row.
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon(this.icon, this.tooltip, this.onPressed);
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 18),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+    );
+  }
+}
+
+/// Collapsed sidebar — a 52px rail. Env dots open nested menus
+/// (server → log) so logs stay reachable without expanding.
+class _CompactRail extends StatelessWidget {
+  const _CompactRail({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 6),
+        IconButton(
+          icon: const Icon(Icons.chevron_right, size: 18),
+          tooltip: 'Expand sidebar',
+          onPressed: () => state.setSidebarCollapsed(false),
+        ),
+        IconButton(
+          icon: const Icon(Icons.search, size: 16),
+          tooltip: 'Search all logs',
+          onPressed: () => showSearchDialog(context, state),
+        ),
+        const Divider(height: 8),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final env in state.environments)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: _EnvDotMenu(env: env, state: state),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One env dot in the compact rail — nested menu: server → log.
+class _EnvDotMenu extends StatelessWidget {
+  const _EnvDotMenu({required this.env, required this.state});
+
+  final Environment env;
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = envColors[env.color] ?? Colors.grey;
+    return MenuAnchor(
+      builder: (ctx, controller, _) => Tooltip(
+        message: env.name,
+        child: InkWell(
+          onTap: () =>
+              controller.isOpen ? controller.close() : controller.open(),
+          child: Center(
+            child: Icon(Icons.circle, size: 10, color: color),
+          ),
+        ),
+      ),
+      menuChildren: [
+        if (env.servers.isEmpty)
+          const MenuItemButton(onPressed: null, child: Text('no servers')),
+        for (final s in env.servers)
+          if (s.logs.length == 1)
+            MenuItemButton(
+              onPressed: () => state.openLog(env, s, s.logs.single),
+              child: Text('${s.name} · ${s.logs.single.name}',
+                  style: const TextStyle(fontSize: 12)),
+            )
+          else
+            SubmenuButton(
+              menuChildren: [
+                for (final l in s.logs)
+                  MenuItemButton(
+                    onPressed: () => state.openLog(env, s, l),
+                    child: Text(l.name,
+                        style: const TextStyle(fontSize: 12)),
+                  ),
+              ],
+              child: Text(s.name, style: const TextStyle(fontSize: 12)),
+            ),
       ],
     );
   }
