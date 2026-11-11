@@ -45,6 +45,10 @@ String get releaseAssetName => Platform.isWindows
     ? 'log-chard-windows-x64.zip'
     : 'log-chard-linux-x64.tar.gz';
 
+/// Why the last check failed — surfaced in the snackbar + stderr so
+/// silent 403s/TLS issues behind proxies stay diagnosable.
+String? lastUpdateError;
+
 /// Fetch `releases/latest` from GitHub. Null on any failure — updat
 /// treats null latest-version as error and just retries later.
 Future<ReleaseInfo?> fetchLatestRelease({http.Client? client}) async {
@@ -52,18 +56,34 @@ Future<ReleaseInfo?> fetchLatestRelease({http.Client? client}) async {
   try {
     final r = await c.get(Uri.parse(
         'https://api.github.com/repos/$_repo/releases/latest'));
-    if (r.statusCode != 200) return null;
+    if (r.statusCode != 200) {
+      lastUpdateError = 'GitHub API HTTP ${r.statusCode}';
+      return null;
+    }
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     final tag = j['tag_name'] as String? ?? '';
-    if (tag.isEmpty) return null;
+    if (tag.isEmpty) {
+      lastUpdateError = 'release has no tag_name';
+      return null;
+    }
     final assets = (j['assets'] as List? ?? []).cast<Map<String, dynamic>>();
     String? urlFor(String name) => assets
         .firstWhere((a) => a['name'] == name, orElse: () => const {})
         .cast<String, dynamic>()['browser_download_url'] as String?;
     final url = urlFor(releaseAssetName);
-    if (url == null) return null;
+    if (url == null) {
+      lastUpdateError = 'no $releaseAssetName asset on $tag';
+      return null;
+    }
+    lastUpdateError = null;
     return ReleaseInfo(
         tag, j['body'] as String? ?? '', url, urlFor('$releaseAssetName.sha256'));
+  } catch (e) {
+    // network/TLS/DNS/proxy failures land here — without the catch
+    // they'd poison _latestCache with a permanently-failed future
+    lastUpdateError = '$e';
+    stderr.writeln('[logchard] update check failed: $e');
+    return null;
   } finally {
     if (client == null) c.close();
   }
@@ -78,9 +98,16 @@ String semverOf(String tag) => tag.replaceFirst(RegExp('^v'), '');
 Future<ReleaseInfo?>? _latestCache;
 Future<ReleaseInfo?> latestRelease() async {
   _latestCache ??= fetchLatestRelease();
-  final r = await _latestCache;
-  if (r == null) _latestCache = null;
-  return r;
+  try {
+    final r = await _latestCache;
+    if (r == null) _latestCache = null;
+    return r;
+  } catch (_) {
+    // a failed future must not be cached — every retry would rethrow
+    // the same stale error forever
+    _latestCache = null;
+    rethrow;
+  }
 }
 
 /// Deterministic download path — updat calls this and our install step

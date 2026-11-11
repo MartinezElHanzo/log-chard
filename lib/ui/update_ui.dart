@@ -62,9 +62,10 @@ class UpdateChip extends StatelessWidget {
                 content:
                     Text('LogChard v$appVersion is up to date.')));
           case UpdatStatus.error:
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content:
-                    Text('Update check failed — try again later.')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(lastUpdateError != null
+                    ? 'Update check failed: $lastUpdateError'
+                    : 'Update check failed — try again later.')));
           default:
         }
       });
