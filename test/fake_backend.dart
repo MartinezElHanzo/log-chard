@@ -55,6 +55,7 @@ class FakeSessionRig {
   final backends = <FakeBackend>[];
   final commands = <String>[];
   final hosts = <String>[];
+  final sizes = <(int, int)>[];
 
   final environment = Environment(name: 'prod', color: 'red');
   late final ServerDef server =
@@ -72,9 +73,11 @@ class FakeSessionRig {
         retryBackoff: retryBackoff,
       );
 
-  TerminalBackend factory(String host, String command) {
+  TerminalBackend factory(
+      String host, String command, int cols, int rows) {
     hosts.add(host);
     commands.add(command);
+    sizes.add((cols, rows));
     final b = FakeBackend();
     backends.add(b);
     return b;

@@ -10,8 +10,11 @@ import 'core/remote_cmd.dart';
 import 'models.dart';
 
 /// Creates a backend for `ssh <host> <command>`. Injectable so tests can
-/// swap the real PTY for a fake stream.
-typedef BackendFactory = TerminalBackend Function(String host, String command);
+/// swap the real PTY for a fake stream. cols/rows seed the PTY size —
+/// the view only pushes a resize when its viewport *changes*, so a
+/// respawn without these would leave the remote stuck at 80x24.
+typedef BackendFactory = TerminalBackend Function(
+    String host, String command, int cols, int rows);
 
 /// One open remote log view: `ssh -tt <host> <cmd>` in a PTY rendered by an
 /// xterm terminal. Sessions stay alive across tab switches, auto-reconnect
@@ -52,8 +55,9 @@ class LogSession extends ChangeNotifier {
 
   static const _maxAttempts = 5;
 
-  static TerminalBackend _sshBackend(String host, String command) =>
-      PtyBackend.ssh(host, command, environment: {
+  static TerminalBackend _sshBackend(
+          String host, String command, int cols, int rows) =>
+      PtyBackend.ssh(host, command, cols: cols, rows: rows, environment: {
         ...Platform.environment,
         'TERM': 'xterm-256color',
       });
@@ -89,8 +93,16 @@ class LogSession extends ChangeNotifier {
   // Proxies so the Terminal's tear-off callbacks always reach the *current*
   // backend — they are bound once in the view's initState but the backend is
   // replaced on every reconnect.
+  // Last size the view reported — seeds every (re)spawn, because the
+  // renderer only fires onResize when the viewport *changes*.
+  int _cols = 80, _rows = 24;
+
   void write(String data) => _backend?.write(data);
-  void resize(int cols, int rows) => _backend?.resize(cols, rows);
+  void resize(int cols, int rows) {
+    _cols = cols;
+    _rows = rows;
+    _backend?.resize(cols, rows);
+  }
 
   void _spawn() {
     try {
@@ -98,6 +110,8 @@ class LogSession extends ChangeNotifier {
         server.host,
         buildLogCommand(server, log,
             follow: _follow, initialPattern: initialPattern),
+        _cols,
+        _rows,
       );
     } catch (e) {
       // Local spawn failure (fork/exec/ffi) — retrying won't help.

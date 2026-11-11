@@ -78,6 +78,19 @@ void main() {
     s.close();
   });
 
+  test('respawn seeds backend with the last view-reported size', () async {
+    final s = rig.session();
+    expect(rig.sizes[0], (80, 24)); // defaults before any resize
+
+    s.resize(140, 50);
+    s.toggleFollow();
+    await pump();
+    // the view never re-fires onResize without a viewport change —
+    // the respawn must carry the remembered size itself
+    expect(rig.sizes[1], (140, 50));
+    s.close();
+  });
+
   test('initialPattern lands as less +/pattern', () {
     LogSession(
         environment: rig.environment,
