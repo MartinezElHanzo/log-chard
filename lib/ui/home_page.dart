@@ -93,7 +93,7 @@ class _TitleBarState extends State<_TitleBar> with WindowListener {
         child: Row(
           children: [
             const SizedBox(width: 10),
-            const Icon(Icons.terminal, size: 14, color: Colors.white54),
+            Image.asset('assets/icon-128.png', width: 15, height: 15),
             const SizedBox(width: 6),
             const Text('log-chard',
                 style: TextStyle(
@@ -127,13 +127,21 @@ class _TitleBarState extends State<_TitleBar> with WindowListener {
                 ),
               ),
             ),
-            WindowCaptionButton.minimize(brightness: Brightness.dark),
+            // the caption buttons are render-only — onPressed must be
+            // wired to windowManager ourselves
+            WindowCaptionButton.minimize(
+                brightness: Brightness.dark,
+                onPressed: windowManager.minimize),
             _maximized
                 ? WindowCaptionButton.unmaximize(
-                    brightness: Brightness.dark)
+                    brightness: Brightness.dark,
+                    onPressed: windowManager.unmaximize)
                 : WindowCaptionButton.maximize(
-                    brightness: Brightness.dark),
-            WindowCaptionButton.close(brightness: Brightness.dark),
+                    brightness: Brightness.dark,
+                    onPressed: windowManager.maximize),
+            WindowCaptionButton.close(
+                brightness: Brightness.dark,
+                onPressed: windowManager.close),
           ],
         ),
       ),

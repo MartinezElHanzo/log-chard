@@ -53,6 +53,9 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+  // Taskbar/alt-tab icon — resolves from the icon theme once install.sh
+  // has placed icon-256.png into hicolor as "log-chard".
+  gtk_window_set_icon_name(window, "log-chard");
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
