@@ -18,6 +18,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.5
       - name: Install Linux desktop build deps
         run: |
           sudo apt-get update
@@ -46,6 +47,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.5
       - run: flutter pub get
       - run: flutter build windows --release
       - name: Headless tools (CLI + MCP server)
