@@ -21,8 +21,8 @@ ln -sf "$PREFIX/lib/log-chard/log_chard" "$PREFIX/bin/log_chard"
 
 install -m644 "$SRC/icon-256.png" \
   "$PREFIX/share/icons/hicolor/256x256/apps/log-chard.png"
-install -m644 "$SRC/log-chard.desktop" \
-  "$PREFIX/share/applications/log-chard.desktop"
+install -m644 "$SRC/io.github.martinezelhanzo.log_chard.desktop" \
+  "$PREFIX/share/applications/io.github.martinezelhanzo.log_chard.desktop"
 
 # refresh caches when tools exist
 command -v update-desktop-database >/dev/null && \

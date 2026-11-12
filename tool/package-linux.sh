@@ -37,9 +37,9 @@ docker run --rm -v "$PWD:/app" -w /app "$IMAGE" bash -euxo pipefail -c '
 
   rm -rf /tmp/pkg && mkdir /tmp/pkg
   cp -a build/linux/x64/release/bundle/. /tmp/pkg/
-  cp assets/icon-256.png tool/log-chard.desktop tool/install.sh /tmp/pkg/
+  cp assets/icon-256.png tool/io.github.martinezelhanzo.log_chard.desktop tool/install.sh /tmp/pkg/
   chmod 755 /tmp/pkg/log_chard /tmp/pkg/logchard /tmp/pkg/logchard-mcp /tmp/pkg/install.sh
-  chmod 644 /tmp/pkg/icon-256.png /tmp/pkg/log-chard.desktop
+  chmod 644 /tmp/pkg/icon-256.png /tmp/pkg/io.github.martinezelhanzo.log_chard.desktop
   tar -czf /app/build/log-chard-linux-x64.tar.gz -C /tmp/pkg .
 '
 
