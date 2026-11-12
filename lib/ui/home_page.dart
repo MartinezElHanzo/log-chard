@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../app_state.dart';
 import '../core/notes_io.dart';
@@ -20,15 +21,119 @@ class HomePage extends StatelessWidget {
     return AnimatedBuilder(
       animation: state,
       builder: (context, _) => Scaffold(
-        body: Row(
+        body: Column(
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: state.sidebarCollapsed ? 52 : 280,
-              child: _Sidebar(state: state),
+            _TitleBar(state: state),
+            Expanded(
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: state.sidebarCollapsed ? 52 : 280,
+                    child: _Sidebar(state: state),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _SessionArea(state: state)),
+                ],
+              ),
             ),
-            const VerticalDivider(width: 1),
-            Expanded(child: _SessionArea(state: state)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// In-app title bar — the window runs frameless (TitleBarStyle.hidden)
+/// so this row IS the title bar: branding + app actions, drag region,
+/// then minimize/maximize/close. Replaces both the native caption and
+/// the old sidebar header row.
+class _TitleBar extends StatefulWidget {
+  const _TitleBar({required this.state});
+
+  final AppState state;
+
+  @override
+  State<_TitleBar> createState() => _TitleBarState();
+}
+
+class _TitleBarState extends State<_TitleBar> with WindowListener {
+  var _maximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    // plugin-less environments (tests) throw MissingPluginException —
+    // the button simply shows "maximize" then, harmless
+    windowManager
+        .isMaximized()
+        .then((v) => mounted ? setState(() => _maximized = v) : null)
+        .catchError((_) {});
+  }
+
+  @override
+  void onWindowMaximize() => setState(() => _maximized = true);
+  @override
+  void onWindowUnmaximize() => setState(() => _maximized = false);
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    return SizedBox(
+      height: 38,
+      child: Container(
+        color: Colors.white.withValues(alpha: 0.05),
+        child: Row(
+          children: [
+            const SizedBox(width: 10),
+            const Icon(Icons.terminal, size: 14, color: Colors.white54),
+            const SizedBox(width: 6),
+            const Text('log-chard',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0)),
+            const SizedBox(width: 8),
+            _HeaderIcon(
+                state.sidebarCollapsed
+                    ? Icons.chevron_right
+                    : Icons.chevron_left,
+                state.sidebarCollapsed
+                    ? 'Expand sidebar'
+                    : 'Collapse sidebar',
+                () => state.setSidebarCollapsed(!state.sidebarCollapsed)),
+            _HeaderIcon(Icons.search, 'Search all logs',
+                () => showSearchDialog(context, state)),
+            _HeaderIcon(Icons.add, 'New environment', () async {
+              final env = await showAddEnvironmentDialog(context);
+              if (env != null && env.name.isNotEmpty) {
+                await state.addEnvironment(env);
+              }
+            }),
+            const SizedBox(
+                width: 32, height: 32, child: AppMenuButton()),
+            Expanded(
+              child: DragToMoveArea(
+                child: Container(
+                  height: double.infinity,
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            WindowCaptionButton.minimize(brightness: Brightness.dark),
+            _maximized
+                ? WindowCaptionButton.unmaximize(
+                    brightness: Brightness.dark)
+                : WindowCaptionButton.maximize(
+                    brightness: Brightness.dark),
+            WindowCaptionButton.close(brightness: Brightness.dark),
           ],
         ),
       ),
@@ -47,31 +152,6 @@ class _Sidebar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 4, 4),
-          child: Row(
-            children: [
-              const Text('EXPLORER',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2)),
-              const Spacer(),
-              _HeaderIcon(Icons.search, 'Search all logs',
-                  () => showSearchDialog(context, state)),
-              _HeaderIcon(Icons.add, 'New environment', () async {
-                final env = await showAddEnvironmentDialog(context);
-                if (env != null && env.name.isNotEmpty) {
-                  await state.addEnvironment(env);
-                }
-              }),
-              _HeaderIcon(Icons.chevron_left, 'Collapse sidebar',
-                  () => state.setSidebarCollapsed(true)),
-              const SizedBox(
-                  width: 32, height: 32, child: AppMenuButton()),
-            ],
-          ),
-        ),
         Expanded(
           child: state.environments.isEmpty
               ? const Center(
@@ -136,17 +216,6 @@ class _CompactRail extends StatelessWidget {
     return Column(
       children: [
         const SizedBox(height: 6),
-        IconButton(
-          icon: const Icon(Icons.chevron_right, size: 18),
-          tooltip: 'Expand sidebar',
-          onPressed: () => state.setSidebarCollapsed(false),
-        ),
-        IconButton(
-          icon: const Icon(Icons.search, size: 16),
-          tooltip: 'Search all logs',
-          onPressed: () => showSearchDialog(context, state),
-        ),
-        const Divider(height: 8),
         Expanded(
           child: ListView(
             children: [

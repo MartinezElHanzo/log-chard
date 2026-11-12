@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app_state.dart';
 import 'config_store.dart';
@@ -8,6 +9,19 @@ import 'ui/update_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Frameless window — the in-app title bar in HomePage draws the
+  // caption buttons and provides the drag area.
+  await windowManager.ensureInitialized();
+  await windowManager.waitUntilReadyToShow(
+    const WindowOptions(
+      titleBarStyle: TitleBarStyle.hidden,
+      minimumSize: Size(640, 400),
+    ),
+    () async {
+      await windowManager.show();
+      await windowManager.focus();
+    },
+  );
   final state = AppState(ConfigStore(), NotesStore());
   await state.load();
   runApp(LogChardApp(state: state));

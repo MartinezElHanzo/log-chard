@@ -42,6 +42,7 @@ dependencies:
   yaml: 3.1.0
   url_launcher: ^6.3.3
   updat: 1.4.0
+  window_manager: 0.5.2
   http: ^1.6.0
   crypto: ^3.0.8
   path: ^1.9.1

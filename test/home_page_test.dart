@@ -27,7 +27,7 @@ AppState _state({List<Environment>? envs}) {
 void main() {
   testWidgets('sidebar shows explorer header and empty state', (t) async {
     await t.pumpWidget(MaterialApp(home: HomePage(state: _state())));
-    expect(find.text('EXPLORER'), findsOneWidget);
+    expect(find.text('log-chard'), findsOneWidget);
     expect(find.textContaining('No environments yet'), findsOneWidget);
     expect(find.textContaining('Open a log from the explorer'), findsOneWidget);
   });
