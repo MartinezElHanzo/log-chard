@@ -31,3 +31,10 @@ Rules for AI agents and automation working in this repo.
 - `flutter analyze` clean and `flutter test` green before committing.
 - Linux release: `bash tool/package-linux.sh` (Docker; wipes `.dart_tool`,
   builds, compiles CLI+MCP, tars with exec bits intact).
+
+## Flutter version
+
+- Single source of truth: `.fvmrc` (FVM). Local `fvm flutter …`, CI reads
+  it via `flutter-version-file`, the Linux Dockerfile gets it as
+  `--build-arg`. Bump the version there, nowhere else — and update the
+  `ARG FLUTTER_VERSION` fallback in `tool/linux.Dockerfile` to match.

@@ -15,8 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libgtk-3-dev liblzma-dev libstdc++-12-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Pin to the same Flutter version as the dev machine's pubspec SDK.
-RUN git clone --depth 1 --branch 3.47.5 https://github.com/flutter/flutter.git /opt/flutter
+# Flutter version comes from .fvmrc (single source of truth) via
+# --build-arg in tool/package-linux.sh. Default kept in sync for
+# direct `docker build` usage.
+ARG FLUTTER_VERSION=3.47.5
+RUN git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git /opt/flutter
 ENV PATH=/opt/flutter/bin:$PATH
 RUN git config --global --add safe.directory /opt/flutter \
     && flutter precache --linux \

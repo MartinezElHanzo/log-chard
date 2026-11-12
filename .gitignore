@@ -48,3 +48,6 @@ app.*.map.json
 .widget_preview/
 spike_win.log
 *.local.log
+
+# FVM SDK cache (.fvmrc at root is the version pin — commit it)
+.fvm/

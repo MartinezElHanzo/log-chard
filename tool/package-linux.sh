@@ -17,7 +17,13 @@ TAR=build/log-chard-linux-x64.tar.gz
 # Git Bash rewrites unix-looking args to Windows paths; stop it.
 export MSYS_NO_PATHCONV=1
 
-docker build -f tool/linux.Dockerfile -t "$IMAGE" .
+# Flutter version: .fvmrc is the single source of truth — parse the
+# "flutter" field without jq (not always present in Git Bash).
+FLUTTER_VERSION=$(tr -d ' \t\n"' < .fvmrc | sed 's/.*flutter:\([^,}]*\).*/\1/')
+echo "Flutter version (from .fvmrc): $FLUTTER_VERSION"
+
+docker build --build-arg "FLUTTER_VERSION=$FLUTTER_VERSION" \
+  -f tool/linux.Dockerfile -t "$IMAGE" .
 
 # Stale artifacts from earlier mounts/broken pub states poison the
 # plugin registrant — wipe everything that isn't the final tarball.

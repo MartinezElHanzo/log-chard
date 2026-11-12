@@ -5,7 +5,11 @@ explorer with an embedded terminal, not a general-purpose SSH client.
 
 ## Dev setup
 
-- Flutter 3.47.5 / Dart 3.13 (pinned — other versions untested)
+- Flutter pinned via FVM — version lives in `.fvmrc` (currently
+  3.47.5 / Dart 3.13). Other versions untested.
+  With [fvm](https://fvm.app) installed: `fvm install` once, then use
+  `fvm flutter …` / `fvm dart …` — or just make sure your system
+  `flutter --version` matches `.fvmrc`.
 - Linux desktop enabled: `flutter config --enable-linux-desktop`
 - Docker (for the Linux release tarball)
 
