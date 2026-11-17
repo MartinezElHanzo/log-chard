@@ -58,10 +58,12 @@ void main() {
         isNull);
   });
 
-  test('semverOf strips leading v only', () {
-    expect(semverOf('v0.5'), '0.5');
-    expect(semverOf('0.5'), '0.5');
+  test('semverOf normalizes to strict 3-component semver', () {
+    expect(semverOf('v0.8'), '0.8.0');
+    expect(semverOf('v0.8.1'), '0.8.1');
+    expect(semverOf('0.8'), '0.8.0');
     expect(semverOf('v1.2.3-beta'), '1.2.3-beta');
+    expect(semverOf('v0.8-beta'), '0.8.0-beta');
   });
 
   test('verifyArchive compares sha256', () async {

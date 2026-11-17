@@ -89,8 +89,22 @@ Future<ReleaseInfo?> fetchLatestRelease({http.Client? client}) async {
   }
 }
 
-/// Semantic version part of a tag: 'v0.5' -> '0.5'.
-String semverOf(String tag) => tag.replaceFirst(RegExp('^v'), '');
+/// Semantic version part of a tag, normalized to strict semver:
+/// 'v0.8' -> '0.8.0', 'v0.8.1-beta' -> '0.8.1-beta'. pub_semver (used
+/// by updat) requires all three numeric components — a two-part tag
+/// throws FormatException inside updat and surfaces as a silent
+/// check failure.
+String semverOf(String tag) {
+  var v = tag.replaceFirst(RegExp('^v'), '');
+  final dash = v.indexOf('-');
+  final pre = dash == -1 ? '' : v.substring(dash);
+  final num = dash == -1 ? v : v.substring(0, dash);
+  final parts = num.split('.');
+  while (parts.length < 3) {
+    parts.add('0');
+  }
+  return parts.join('.') + pre;
+}
 
 /// Memoized release fetch — updat calls getLatestVersion, getBinaryUrl
 /// and getChangelog separately; one API call must serve all three.
