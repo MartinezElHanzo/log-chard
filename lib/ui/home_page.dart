@@ -11,33 +11,110 @@ import 'dialogs.dart';
 import 'search.dart';
 import 'term_view.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.state});
 
   final AppState state;
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // Live drag width — shown immediately without persisting; written to
+  // AppState.settings once on drag end (saves hit disk, not per-frame).
+  double? _sidebarDragW;
+  double _dragStartW = 0;
+  double _dragStartX = 0;
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     return AnimatedBuilder(
       animation: state,
-      builder: (context, _) => Scaffold(
-        body: Column(
-          children: [
-            _TitleBar(state: state),
-            Expanded(
-              child: Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: state.sidebarCollapsed ? 52 : 280,
-                    child: _Sidebar(state: state),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: _SessionArea(state: state)),
-                ],
+      builder: (context, _) {
+        final collapsed = state.sidebarCollapsed;
+        return Scaffold(
+          body: Column(
+            children: [
+              _TitleBar(state: state),
+              Expanded(
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      // No anim while dragging — width tracks the cursor.
+                      duration: _sidebarDragW == null
+                          ? const Duration(milliseconds: 150)
+                          : Duration.zero,
+                      width: collapsed
+                          ? 52
+                          : (_sidebarDragW ?? state.sidebarWidth),
+                      child: _Sidebar(state: state),
+                    ),
+                    if (collapsed)
+                      const VerticalDivider(width: 1)
+                    else
+                      _DragDivider(
+                        onDragStart: (x) {
+                          _dragStartW = _sidebarDragW ??
+                              state.sidebarWidth;
+                          _dragStartX = x;
+                        },
+                        onDrag: (x) => setState(() =>
+                            _sidebarDragW = (_dragStartW +
+                                    x -
+                                    _dragStartX)
+                                .clamp(AppState.minSidebarWidth,
+                                    AppState.maxSidebarWidth)),
+                        onDragEnd: () {
+                          final w = _sidebarDragW;
+                          _sidebarDragW = null;
+                          if (w != null) state.setSidebarWidth(w);
+                        },
+                      ),
+                    Expanded(child: _SessionArea(state: state)),
+                  ],
+                ),
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Thin grab-strip between resizable panels: resize cursor + a wide
+/// invisible hit area around a 1px line, so the divider is grabbable
+/// without looking thicker. [onDrag*] get global X positions.
+class _DragDivider extends StatelessWidget {
+  const _DragDivider({
+    required this.onDragStart,
+    required this.onDrag,
+    required this.onDragEnd,
+  });
+
+  final void Function(double globalX) onDragStart;
+  final void Function(double globalX) onDrag;
+  final VoidCallback onDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragStart: (d) => onDragStart(d.globalPosition.dx),
+        onHorizontalDragUpdate: (d) => onDrag(d.globalPosition.dx),
+        onHorizontalDragEnd: (_) => onDragEnd(),
+        child: SizedBox(
+          width: 7,
+          child: Center(
+            child: Container(
+              width: 1,
+              color: Theme.of(context).dividerColor,
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -712,10 +789,22 @@ void _onLogMenu(BuildContext context, String? v, AppState state,
   }
 }
 
-class _SessionArea extends StatelessWidget {
+class _SessionArea extends StatefulWidget {
   const _SessionArea({required this.state});
 
   final AppState state;
+
+  @override
+  State<_SessionArea> createState() => _SessionAreaState();
+}
+
+class _SessionAreaState extends State<_SessionArea> {
+  // Live notes-panel width during a divider drag — persisted on end.
+  double? _notesDragW;
+  double _dragStartW = 0;
+  double _dragStartX = 0;
+
+  AppState get state => widget.state;
 
   // Keyed per session: without it Flutter reuses the element across
   // tab switches and the new session's terminal keeps a stale view
@@ -808,8 +897,26 @@ class _SessionArea extends StatelessWidget {
                       },
               ),
               if (state.notesPanelVisible) ...[
-                const VerticalDivider(width: 1),
-                SizedBox(width: 300, child: _NotesPanel(state: state)),
+                _DragDivider(
+                  onDragStart: (x) {
+                    _dragStartW =
+                        _notesDragW ?? state.notesPanelWidth;
+                    _dragStartX = x;
+                  },
+                  // Panel is right-anchored: dragging left grows it.
+                  onDrag: (x) => setState(() => _notesDragW =
+                      (_dragStartW - x + _dragStartX).clamp(
+                          AppState.minNotesPanelWidth,
+                          AppState.maxNotesPanelWidth)),
+                  onDragEnd: () {
+                    final w = _notesDragW;
+                    _notesDragW = null;
+                    if (w != null) state.setNotesPanelWidth(w);
+                  },
+                ),
+                SizedBox(
+                    width: _notesDragW ?? state.notesPanelWidth,
+                    child: _NotesPanel(state: state)),
               ],
             ],
           ),

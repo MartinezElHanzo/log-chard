@@ -109,6 +109,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Panel widths — dragged live by the UI, persisted on drag end.
+  static const minSidebarWidth = 160.0;
+  static const maxSidebarWidth = 480.0;
+  static const minNotesPanelWidth = 200.0;
+  static const maxNotesPanelWidth = 600.0;
+
+  double get sidebarWidth =>
+      (settings['sidebarWidth'] as num?)?.toDouble() ?? 280;
+
+  Future<void> setSidebarWidth(double w) async {
+    settings['sidebarWidth'] =
+        w.clamp(minSidebarWidth, maxSidebarWidth);
+    await _persist();
+    notifyListeners();
+  }
+
+  double get notesPanelWidth =>
+      (settings['notesPanelWidth'] as num?)?.toDouble() ?? 300;
+
+  Future<void> setNotesPanelWidth(double w) async {
+    settings['notesPanelWidth'] =
+        w.clamp(minNotesPanelWidth, maxNotesPanelWidth);
+    await _persist();
+    notifyListeners();
+  }
+
   // --- tree mutations (each persists) ---
 
   Future<void> addEnvironment(Environment env) async {
