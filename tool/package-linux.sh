@@ -19,7 +19,7 @@ export MSYS_NO_PATHCONV=1
 
 # Flutter version: .fvmrc is the single source of truth — parse the
 # "flutter" field without jq (not always present in Git Bash).
-FLUTTER_VERSION=$(tr -d ' \t\n"' < .fvmrc | sed 's/.*flutter:\([^,}]*\).*/\1/')
+FLUTTER_VERSION=$(tr -d ' \t\r\n"' < .fvmrc | sed 's/.*flutter:\([^,}]*\).*/\1/')
 echo "Flutter version (from .fvmrc): $FLUTTER_VERSION"
 
 docker build --build-arg "FLUTTER_VERSION=$FLUTTER_VERSION" \
