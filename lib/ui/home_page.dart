@@ -717,7 +717,11 @@ class _SessionArea extends StatelessWidget {
 
   final AppState state;
 
+  // Keyed per session: without it Flutter reuses the element across
+  // tab switches and the new session's terminal keeps a stale view
+  // state (see LogTermView.didUpdateWidget for the rewiring fallback).
   Widget _sessionView(LogSession s) => LogTermView(
+      key: ObjectKey(s),
       terminal: s.terminal,
       onWrite: s.write,
       onResize: s.resize,
@@ -725,28 +729,28 @@ class _SessionArea extends StatelessWidget {
       onFontSizeChanged: state.setTerminalFontSize,
       onTakeNote: (text) => state.takeNote(s, text));
 
+  // Returns pane CONTENT — callers wrap in Expanded as their layout
+  // requires (nesting Expanded inside Expanded breaks ParentData).
   Widget _pane(int p) {
     final idx = state.panes[p];
     final valid = idx != null && idx < state.sessions.length;
     final multi = state.paneCount > 1;
-    return Expanded(
-      child: Container(
-        decoration: multi && p == state.focusedPane
-            ? BoxDecoration(
-                border: Border.all(color: Colors.white24))
-            : null,
-        child: Column(
-          children: [
-            if (multi) _PaneHeader(state: state, pane: p),
-            Expanded(
-              child: valid
-                  ? _sessionView(state.sessions[idx])
-                  : const Center(
-                      child: Text('Pick a tab for this pane',
-                          style: TextStyle(color: Colors.white38))),
-            ),
-          ],
-        ),
+    return Container(
+      decoration: multi && p == state.focusedPane
+          ? BoxDecoration(
+              border: Border.all(color: Colors.white24))
+          : null,
+      child: Column(
+        children: [
+          if (multi) _PaneHeader(state: state, pane: p),
+          Expanded(
+            child: valid
+                ? _sessionView(state.sessions[idx])
+                : const Center(
+                    child: Text('Pick a tab for this pane',
+                        style: TextStyle(color: Colors.white38))),
+          ),
+        ],
       ),
     );
   }
@@ -782,23 +786,23 @@ class _SessionArea extends StatelessWidget {
                     : switch (state.paneCount) {
                         1 => _pane(0),
                         2 => Row(children: [
-                            _pane(0),
+                            Expanded(child: _pane(0)),
                             const VerticalDivider(width: 1),
-                            _pane(1),
+                            Expanded(child: _pane(1)),
                           ]),
                         _ => Column(children: [
                             Expanded(
                                 child: Row(children: [
-                              _pane(0),
+                              Expanded(child: _pane(0)),
                               const VerticalDivider(width: 1),
-                              _pane(1),
+                              Expanded(child: _pane(1)),
                             ])),
                             const Divider(height: 1),
                             Expanded(
                                 child: Row(children: [
-                              _pane(2),
+                              Expanded(child: _pane(2)),
                               const VerticalDivider(width: 1),
-                              _pane(3),
+                              Expanded(child: _pane(3)),
                             ])),
                           ]),
                       },
@@ -988,13 +992,17 @@ class _StatusBar extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: envColor)),
             const SizedBox(width: 10),
-            Text('${s.server.host} · ${s.log.path}',
-                style:
-                    const TextStyle(fontSize: 11, color: Colors.white54)),
-          ] else
+            Expanded(
+              child: Text('${s.server.host} · ${s.log.path}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11, color: Colors.white54)),
+            ),
+          ] else ...[
             const Text('idle',
                 style: TextStyle(fontSize: 11, color: Colors.white38)),
-          const Spacer(),
+            const Spacer(),
+          ],
           if (s != null) ...[
             Text(s.status,
                 style:

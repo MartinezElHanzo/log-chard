@@ -119,6 +119,24 @@ class LogTermViewState extends State<LogTermView> {
   @override
   void initState() {
     super.initState();
+    _wireTerminal();
+  }
+
+  @override
+  void didUpdateWidget(LogTermView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.terminal != widget.terminal) {
+      oldWidget.terminal.removeListener(_onTerminalUpdate);
+      termController.clearSelection();
+      _wireTerminal();
+    }
+  }
+
+  /// Point the terminal's callbacks at this view's session. Must run
+  /// whenever [widget.terminal] changes — a reused element would
+  /// otherwise leave a new session's terminal without onResize/onOutput
+  /// (pty stuck at spawn size, input dead).
+  void _wireTerminal() {
     widget.terminal.onOutput = widget.onWrite;
     widget.terminal.onResize =
         (w, h, pw, ph) => widget.onResize(w, h);

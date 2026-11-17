@@ -32,6 +32,7 @@ class FakeBackend implements TerminalBackend {
   final out = StreamController<String>();
   final exit = Completer<int>();
   final written = StringBuffer();
+  final resizes = <(int, int)>[];
   var killed = false;
 
   @override
@@ -41,7 +42,7 @@ class FakeBackend implements TerminalBackend {
   void write(String data) => written.write(data);
 
   @override
-  void resize(int cols, int rows) {}
+  void resize(int cols, int rows) => resizes.add((cols, rows));
 
   @override
   Future<int> get exitCode => exit.future;
