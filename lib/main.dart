@@ -1,14 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_state.dart';
 import 'config_store.dart';
+import 'core/desktop_integration.dart';
 import 'notes_store.dart';
 import 'ui/home_page.dart';
 import 'ui/update_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Wayland taskbar icon needs a matched .desktop file — self-register
+  // so portable tarball runs get icon + app name too.
+  unawaited(registerDesktopEntry());
   // Frameless window — the in-app title bar in HomePage draws the
   // caption buttons and provides the drag area.
   await windowManager.ensureInitialized();
